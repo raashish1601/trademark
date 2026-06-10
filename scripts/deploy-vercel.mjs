@@ -60,14 +60,28 @@ const setEnv = (key, value) => {
 console.log("→ Pushing secrets to Production…");
 for (const key of SECRET_KEYS) setEnv(key, env[key]);
 
-console.log("→ First production deploy…");
-const url = run(`vercel deploy --prod --yes ${T}`).trim().split(/\s+/).pop();
-console.log("  deployed:", url);
-
-console.log("→ Pointing auth URLs at the live domain & redeploying…");
-setEnv("BETTER_AUTH_URL", url);
-setEnv("NEXT_PUBLIC_APP_URL", url);
-const finalUrl = run(`vercel deploy --prod --yes ${T}`).trim().split(/\s+/).pop();
+// With PROD_URL set (the stable domain, e.g. https://trademark-smoky.vercel.app)
+// we can push the auth URLs up front and deploy exactly once.
+const prodUrl = process.env.PROD_URL;
+let finalUrl = prodUrl;
+if (prodUrl) {
+  setEnv("BETTER_AUTH_URL", prodUrl);
+  setEnv("NEXT_PUBLIC_APP_URL", prodUrl);
+  console.log("→ Production deploy…");
+  runLoud(`vercel deploy --prod --yes ${T}`);
+} else {
+  console.log("→ First production deploy…");
+  const out = run(`vercel deploy --prod --yes ${T}`);
+  // The CLI may print JSON status to stdout; extract the URL defensively.
+  const url = (out.match(/https:\/\/[a-z0-9-]+\.vercel\.app/i) ?? [])[0];
+  if (!url) throw new Error(`Could not parse deployment URL from output:\n${out}`);
+  console.log("  deployed:", url);
+  console.log("→ Pointing auth URLs at the live domain & redeploying…");
+  setEnv("BETTER_AUTH_URL", url);
+  setEnv("NEXT_PUBLIC_APP_URL", url);
+  runLoud(`vercel deploy --prod --yes ${T}`);
+  finalUrl = url;
+}
 
 console.log("\n✅ Live at:", finalUrl);
 console.log("Add this domain to Google OAuth redirect URIs if using Google sign-in.");
