@@ -51,35 +51,26 @@ await step("onboarding renders 3 mode cards", async () => {
   await page.goto(`${BASE}/app/onboarding`, { waitUntil: "networkidle" });
   await page.getByText("Start free — we host it").waitFor({ timeout: 15000 });
   await page.getByText("Bring your own database").waitFor();
-  await page.getByText("Try the demo").waitFor();
+  await page.getByText("Try without an account").waitFor();
 });
 
-await step("demo seeds & lands on dashboard", async () => {
-  await page.getByText("Try the demo").click();
-  await page.waitForURL("**/app/dashboard", { timeout: 90000 });
+await step("demo starts EMPTY → setup → dashboard", async () => {
+  await page.getByText("Try without an account").click();
+  await page.getByText("Set up your journal").waitFor({ timeout: 60000 });
+  await page.getByRole("button", { name: "Start journaling" }).click();
+  await page.waitForURL("**/app/dashboard", { timeout: 60000 });
   await page.getByText("Net P&L").first().waitFor({ timeout: 30000 });
 });
 
 console.log("— Dashboard —");
-await step("dashboard shows seeded DATA (not just labels)", async () => {
+await step("dashboard renders fresh journal (rules checklist, empty states)", async () => {
   await page.getByText("Equity curve").waitFor({ timeout: 15000 });
-  // The rule checklist shows "x/6" once the 6 seeded rules load — real data, not a label.
-  await page.getByText(/\/\s*6 followed|0\/6/).first().waitFor({ timeout: 20000 });
-  await page.locator("svg").first().waitFor();
+  // 6 starter rules seeded by setup → checklist shows "0/6 followed".
+  await page.getByText(/0\/6 followed/).first().waitFor({ timeout: 20000 });
+  await page.getByText("No trades yet").waitFor({ timeout: 15000 });
 });
 
 console.log("— Trades —");
-await step("trades list renders rows", async () => {
-  await page.goto(`${BASE}/app/trades`, { waitUntil: "networkidle" });
-  await page.locator("table tbody tr").first().waitFor({ timeout: 20000 });
-});
-
-await step("trade detail opens", async () => {
-  await page.locator("table tbody tr a").first().click();
-  await page.getByText("P&L breakdown").waitFor({ timeout: 15000 });
-  await page.getByText("Execution").waitFor();
-});
-
 await step("quick-add: equity trade saves", async () => {
   await page.goto(`${BASE}/app/trades`, { waitUntil: "networkidle" });
   await page.keyboard.press("t");
@@ -95,9 +86,20 @@ await step("quick-add: equity trade saves", async () => {
   await page.getByText("Trade saved").waitFor({ timeout: 10000 });
 });
 
-await step("new trade appears in list (search filter)", async () => {
+await step("trades list renders the new trade", async () => {
+  await page.locator("table tbody tr").first().waitFor({ timeout: 20000 });
+});
+
+await step("search filter finds it", async () => {
   await page.getByPlaceholder("Symbol…").fill("TESTSTOCK");
   await page.getByText("TESTSTOCK").first().waitFor({ timeout: 10000 });
+  await page.getByPlaceholder("Symbol…").fill("");
+});
+
+await step("trade detail opens", async () => {
+  await page.locator("table tbody tr a").first().click();
+  await page.getByText("P&L breakdown").waitFor({ timeout: 15000 });
+  await page.getByText("Execution").waitFor();
 });
 
 console.log("— Journal —");
@@ -127,6 +129,7 @@ await step("calendar heatmap renders", async () => {
 console.log("— Analytics —");
 await step("analytics: all four tabs render", async () => {
   await page.goto(`${BASE}/app/analytics`, { waitUntil: "networkidle" });
+  // One closed trade exists (quick-add above) → hour chart has data.
   await page.getByText("By entry hour").waitFor({ timeout: 20000 });
   for (const tab of ["Setup", "Instrument", "Distribution"]) {
     await page.getByRole("tab", { name: tab }).click();

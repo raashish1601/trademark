@@ -8,9 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const STEPS = [
-  <>Create a free account at <a className="text-accent underline" href="https://turso.tech" target="_blank" rel="noreferrer">turso.tech</a> (no card needed).</>,
-  <>Create a database: <code className="rounded bg-surface-2 px-1 text-xs">turso db create my-journal</code> or use the dashboard.</>,
+const DASHBOARD_STEPS = [
+  <>Create a free account at <a className="text-accent underline" href="https://app.turso.tech" target="_blank" rel="noreferrer">app.turso.tech</a> (no card needed).</>,
+  <>Click <strong>Databases → Create Database</strong>, name it (e.g. <code className="rounded bg-surface-2 px-1 text-xs">my-journal</code>) and create it.</>,
+  <>Open the database — copy its <strong>URL</strong> (starts with <code className="rounded bg-surface-2 px-1 text-xs">libsql://</code>).</>,
+  <>Click <strong>Generate Token</strong> (read &amp; write) and copy it.</>,
+];
+
+const CLI_STEPS = [
+  <>Install the CLI &amp; sign up: <code className="rounded bg-surface-2 px-1 text-xs">turso auth signup</code></>,
+  <>Create a database: <code className="rounded bg-surface-2 px-1 text-xs">turso db create my-journal</code></>,
   <>Copy the URL: <code className="rounded bg-surface-2 px-1 text-xs">turso db show my-journal --url</code></>,
   <>Create a token: <code className="rounded bg-surface-2 px-1 text-xs">turso db tokens create my-journal</code></>,
 ];
@@ -37,18 +44,30 @@ export function ByodWizard({ onConnected }: { onConnected: () => void }) {
     }
   };
 
+  const Steps = ({ items }: { items: React.ReactNode[] }) => (
+    <ol className="space-y-2 text-sm text-muted">
+      {items.map((s, i) => (
+        <li key={i} className="flex gap-2">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-xs font-semibold text-accent">
+            {i + 1}
+          </span>
+          <span>{s}</span>
+        </li>
+      ))}
+    </ol>
+  );
+
   return (
     <div className="space-y-4">
-      <ol className="space-y-2 text-sm text-muted">
-        {STEPS.map((s, i) => (
-          <li key={i} className="flex gap-2">
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/15 text-xs font-semibold text-accent">
-              {i + 1}
-            </span>
-            <span>{s}</span>
-          </li>
-        ))}
-      </ol>
+      <Steps items={DASHBOARD_STEPS} />
+      <details className="rounded-lg border bg-surface-2/40 px-3 py-2">
+        <summary className="text-xs font-medium text-muted hover:text-foreground">
+          Prefer the terminal? CLI steps
+        </summary>
+        <div className="pt-3">
+          <Steps items={CLI_STEPS} />
+        </div>
+      </details>
 
       <div className="space-y-3">
         <div className="space-y-1">

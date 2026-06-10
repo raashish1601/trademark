@@ -35,7 +35,7 @@ const STEPS = [
 const MODES = [
   { icon: Cloud, title: "Hosted", badge: "default", text: "Sign up in a minute. Your own isolated database — not a row in someone else's." },
   { icon: Database, title: "Your database", badge: "private", text: "Connect a free Turso DB. Queries go browser → your DB. We never see a trade." },
-  { icon: HardDrive, title: "In-browser", badge: "instant", text: "A real SQLite database inside your browser — explore everything with sample data, no account needed." },
+  { icon: HardDrive, title: "In-browser", badge: "instant", text: "A real SQLite database inside your browser — private, instant, no account needed." },
 ];
 
 export default function LandingPage() {

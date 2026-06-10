@@ -8,7 +8,6 @@ import { ArrowLeft, ArrowRight, CandlestickChart, Check, Cloud, Database, PlayCi
 import { toast } from "sonner";
 import { useDbSession } from "@/providers/db-session-provider";
 import { useSession } from "@/lib/auth-client";
-import { seedSampleData } from "@/lib/db/seed";
 import { Button } from "@/components/ui/button";
 import { AuthForm } from "@/features/auth";
 import { ByodWizard } from "./byod-wizard";
@@ -40,8 +39,8 @@ const MODE_CARDS = [
   {
     key: "demo" as const,
     icon: PlayCircle,
-    title: "Try the demo",
-    text: "Instant, in-browser, sample data included. No sign-up.",
+    title: "Try without an account",
+    text: "Instant and private — a real SQLite journal inside your browser.",
     badge: "Instant",
   },
 ];
@@ -84,13 +83,8 @@ export function OnboardingFlow() {
   const handleDemo = async () => {
     setBusy("demo");
     try {
-      const db = await startLocal();
-      const onboarded = await db.execute(`SELECT value FROM settings WHERE key = 'onboarded'`);
-      if (onboarded.rows.length === 0) {
-        toast.info("Preparing demo data…");
-        await seedSampleData(db);
-      }
-      goDashboard();
+      // Starts empty — the ready-state effect routes new journals through setup.
+      await startLocal();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Demo failed to start");
       setBusy(null);

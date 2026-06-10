@@ -26,13 +26,19 @@ export default function DocsPage() {
 
       <section className="space-y-2">
         <h2 className="text-lg font-semibold">2. Bring your own database (most private)</h2>
+        <p className="text-sm leading-6 text-muted">No terminal needed — everything works from Turso&apos;s web dashboard:</p>
         <ol className="list-decimal space-y-1 pl-5 text-sm leading-6 text-muted">
-          <li>Create a free account at <a href="https://turso.tech" className="text-accent underline" target="_blank" rel="noreferrer">turso.tech</a></li>
-          <li>Create a database: <code className="rounded bg-surface-2 px-1">turso db create my-journal</code></li>
-          <li>Get the URL: <code className="rounded bg-surface-2 px-1">turso db show my-journal --url</code></li>
-          <li>Create a token: <code className="rounded bg-surface-2 px-1">turso db tokens create my-journal</code></li>
+          <li>Create a free account at <a href="https://app.turso.tech" className="text-accent underline" target="_blank" rel="noreferrer">app.turso.tech</a> (no card needed)</li>
+          <li>Click <strong>Databases → Create Database</strong>, give it a name (e.g. <code className="rounded bg-surface-2 px-1">my-journal</code>)</li>
+          <li>Open the database and copy its <strong>URL</strong> (starts with <code className="rounded bg-surface-2 px-1">libsql://</code>)</li>
+          <li>Click <strong>Generate Token</strong> (read &amp; write) and copy it</li>
           <li>Paste both in <Link href="/app/onboarding" className="text-accent underline">the connect wizard</Link></li>
         </ol>
+        <p className="text-sm leading-6 text-muted">
+          CLI fans: <code className="rounded bg-surface-2 px-1">turso db create my-journal</code>, then{" "}
+          <code className="rounded bg-surface-2 px-1">turso db show my-journal --url</code> and{" "}
+          <code className="rounded bg-surface-2 px-1">turso db tokens create my-journal</code>.
+        </p>
         <p className="text-sm leading-6 text-muted">
           Credentials are stored only in your browser (optionally passphrase-encrypted). Every query
           goes directly from your browser to your database — we never see your data.

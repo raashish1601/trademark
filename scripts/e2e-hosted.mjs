@@ -77,7 +77,7 @@ await step("sign in again → data persisted in hosted DB", async () => {
   await page.goto(`${BASE}/app/onboarding`, { waitUntil: "networkidle" });
   await page.getByText("Start free — we host it").click();
   await page.getByText("Create your free account").waitFor({ timeout: 15000 });
-  await page.getByRole("tab", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: /Already have an account/ }).click();
   await page.getByPlaceholder("you@example.com").fill(EMAIL);
   await page.getByPlaceholder("8+ characters").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();

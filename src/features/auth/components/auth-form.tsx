@@ -1,30 +1,48 @@
 "use client";
 
 import * as React from "react";
-import { toast } from "sonner";
-import { signIn, signUp } from "@/lib/auth-client";
+import { Eye, EyeOff, Loader2, MailCheck } from "lucide-react";
+import { authClient, signIn, signUp } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+type Mode = "signup" | "signin" | "forgot";
 
 /** Email/password + optional Google sign-in. On success, the caller connects hosted storage. */
 export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
+  const [mode, setMode] = React.useState<Mode>("signup");
   const [busy, setBusy] = React.useState(false);
-  const [needsVerification, setNeedsVerification] = React.useState(false);
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [notice, setNotice] = React.useState<string | null>(null);
   const googleEnabled = process.env.NEXT_PUBLIC_GOOGLE_AUTH === "1";
 
-  const handle = async (mode: "in" | "up", form: FormData) => {
+  const switchMode = (m: Mode) => {
+    setMode(m);
+    setError(null);
+    setNotice(null);
+  };
+
+  const submit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    const email = String(form.get("email") ?? "");
     setBusy(true);
+    setError(null);
     try {
-      const email = String(form.get("email"));
-      const password = String(form.get("password"));
-      if (mode === "up") {
-        const res = await signUp.email({ email, password, name: String(form.get("name")) });
+      if (mode === "forgot") {
+        await authClient.requestPasswordReset({ email, redirectTo: "/reset-password" });
+        setNotice("If an account exists for that email, a reset link is on its way.");
+        return;
+      }
+      const password = String(form.get("password") ?? "");
+      if (mode === "signup") {
+        const res = await signUp.email({ email, password, name: String(form.get("name") ?? "") });
         if (res.error) throw new Error(res.error.message);
-        // If email verification is enforced, there is no session yet.
         if (!res.data?.token) {
-          setNeedsVerification(true);
+          // Email verification is enforced — no session yet.
+          setNotice("Almost there! Check your inbox for a verification link, then sign in.");
           return;
         }
       } else {
@@ -32,69 +50,130 @@ export function AuthForm({ onAuthed }: { onAuthed: () => void }) {
         if (res.error) throw new Error(res.error.message);
       }
       onAuthed();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Authentication failed");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong — try again.");
     } finally {
       setBusy(false);
     }
   };
 
-  if (needsVerification) {
+  if (notice) {
     return (
-      <p className="rounded-lg border bg-surface-2 p-4 text-sm">
-        📬 Check your inbox — we sent a verification link. After verifying, come back and sign in.
-      </p>
+      <div className="flex items-start gap-3 rounded-xl border bg-surface-2/50 p-4">
+        <MailCheck className="mt-0.5 h-5 w-5 shrink-0 text-profit" />
+        <div className="space-y-2">
+          <p className="text-sm">{notice}</p>
+          <button type="button" className="text-xs text-accent hover:underline" onClick={() => switchMode("signin")}>
+            Back to sign in
+          </button>
+        </div>
+      </div>
     );
   }
 
-  const fields = (mode: "in" | "up") => (
-    <form
-      className="space-y-3"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void handle(mode, new FormData(e.currentTarget));
-      }}
-    >
-      {mode === "up" && (
-        <div className="space-y-1">
-          <Label>Name</Label>
-          <Input name="name" required placeholder="Your name" />
-        </div>
-      )}
-      <div className="space-y-1">
-        <Label>Email</Label>
-        <Input name="email" type="email" required placeholder="you@example.com" />
-      </div>
-      <div className="space-y-1">
-        <Label>Password</Label>
-        <Input name="password" type="password" required minLength={8} placeholder="8+ characters" />
-      </div>
-      <Button type="submit" className="w-full" disabled={busy}>
-        {busy ? "Please wait…" : mode === "up" ? "Create free account" : "Sign in"}
-      </Button>
-    </form>
-  );
-
   return (
-    <div className="space-y-3">
-      <Tabs defaultValue="up">
-        <TabsList className="w-full grid grid-cols-2">
-          <TabsTrigger value="up">Sign up</TabsTrigger>
-          <TabsTrigger value="in">Sign in</TabsTrigger>
-        </TabsList>
-        <TabsContent value="up">{fields("up")}</TabsContent>
-        <TabsContent value="in">{fields("in")}</TabsContent>
-      </Tabs>
-      {googleEnabled && (
-        <Button
-          variant="outline"
-          className="w-full"
-          disabled={busy}
-          onClick={() => signIn.social({ provider: "google", callbackURL: "/app/onboarding" })}
-        >
-          Continue with Google
+    <div className="space-y-4">
+      <form className="space-y-3" onSubmit={submit}>
+        {mode === "signup" && (
+          <div className="space-y-1.5">
+            <Label htmlFor="auth-name">Name</Label>
+            <Input id="auth-name" name="name" required placeholder="Your name" autoComplete="name" />
+          </div>
+        )}
+        <div className="space-y-1.5">
+          <Label htmlFor="auth-email">Email</Label>
+          <Input
+            id="auth-email"
+            name="email"
+            type="email"
+            required
+            placeholder="you@example.com"
+            autoComplete="email"
+          />
+        </div>
+        {mode !== "forgot" && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="auth-password">Password</Label>
+              {mode === "signin" && (
+                <button
+                  type="button"
+                  className="text-xs text-muted hover:text-accent"
+                  onClick={() => switchMode("forgot")}
+                >
+                  Forgot password?
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <Input
+                id="auth-password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                required
+                minLength={8}
+                placeholder="8+ characters"
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                className="pr-10"
+              />
+              <button
+                type="button"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
+                onClick={() => setShowPassword((s) => !s)}
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <p className="rounded-lg border border-loss/40 bg-loss/10 px-3 py-2 text-xs text-loss">{error}</p>
+        )}
+
+        <Button type="submit" className="w-full" disabled={busy}>
+          {busy && <Loader2 className="animate-spin" />}
+          {mode === "signup" ? "Create free account" : mode === "signin" ? "Sign in" : "Send reset link"}
         </Button>
+      </form>
+
+      {googleEnabled && mode !== "forgot" && (
+        <>
+          <div className="flex items-center gap-3">
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-[11px] uppercase tracking-wider text-muted">or</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <Button
+            variant="outline"
+            className="w-full"
+            disabled={busy}
+            onClick={() => signIn.social({ provider: "google", callbackURL: "/app/onboarding" })}
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden>
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1Z" />
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z" />
+              <path fill="#FBBC05" d="M5.84 14.1A6.6 6.6 0 0 1 5.49 12c0-.73.13-1.43.35-2.1V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84Z" />
+              <path fill="#EA4335" d="M12 5.38c1.61 0 3.06.55 4.21 1.64l3.16-3.16A10.96 10.96 0 0 0 12 1 11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38Z" />
+            </svg>
+            Continue with Google
+          </Button>
+        </>
       )}
+
+      <p className="text-center text-xs text-muted">
+        {mode === "signup" ? (
+          <button type="button" className="hover:text-accent" onClick={() => switchMode("signin")}>
+            Already have an account? <span className="font-medium text-accent">Sign in</span>
+          </button>
+        ) : (
+          <button type="button" className="hover:text-accent" onClick={() => switchMode("signup")}>
+            New to TradeMark? <span className="font-medium text-accent">Create a free account</span>
+          </button>
+        )}
+      </p>
     </div>
   );
 }

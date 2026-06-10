@@ -117,6 +117,19 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Tailwind v4 preflight leaves buttons with cursor:default — restore pointer
+   on every enabled interactive element (CTAs, tabs, selects, calendar tiles…). */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+[role="tab"]:not([aria-disabled="true"]),
+[role="option"],
+[role="menuitem"],
+select:not(:disabled),
+summary,
+label:has(> input[type="file"].hidden) {
+  cursor: pointer;
+}
+
 .font-money {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
