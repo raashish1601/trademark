@@ -12,10 +12,13 @@ const BASE = process.env.BASE_URL ?? "http://localhost:3000";
 const EMAIL = process.env.DEMO_EMAIL ?? "demo@trademark.app";
 const PASSWORD = process.env.DEMO_PASSWORD ?? "Demo@12345";
 
+// Better Auth (rightly) rejects origin-less browser-style requests in production.
+const HEADERS = { "Content-Type": "application/json", Origin: BASE };
+
 async function authedCookie(): Promise<string> {
   const signUp = await fetch(`${BASE}/api/auth/sign-up/email`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: HEADERS,
     body: JSON.stringify({ email: EMAIL, password: PASSWORD, name: "Demo Trader" }),
   });
   let res = signUp;
@@ -23,7 +26,7 @@ async function authedCookie(): Promise<string> {
     console.log("  sign-up not possible (exists?) — signing in");
     res = await fetch(`${BASE}/api/auth/sign-in/email`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: HEADERS,
       body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
     });
     if (!res.ok) throw new Error(`sign-in failed: ${res.status} ${await res.text()}`);
@@ -40,11 +43,17 @@ async function main() {
   console.log(`Seeding demo user on ${BASE} as ${EMAIL}`);
   const cookie = await authedCookie();
 
-  const prov = await fetch(`${BASE}/api/db/provision`, { method: "POST", headers: { cookie } });
+  const prov = await fetch(`${BASE}/api/db/provision`, {
+    method: "POST",
+    headers: { cookie, Origin: BASE },
+  });
   if (!prov.ok) throw new Error(`provision failed: ${prov.status} ${await prov.text()}`);
   console.log("  provisioned:", ((await prov.json()) as { dbName: string }).dbName);
 
-  const tok = await fetch(`${BASE}/api/db/token`, { method: "POST", headers: { cookie } });
+  const tok = await fetch(`${BASE}/api/db/token`, {
+    method: "POST",
+    headers: { cookie, Origin: BASE },
+  });
   if (!tok.ok) throw new Error(`token failed: ${tok.status} ${await tok.text()}`);
   const { url, token } = (await tok.json()) as { url: string; token: string };
 
