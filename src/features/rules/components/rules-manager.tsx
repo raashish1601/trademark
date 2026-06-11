@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useDeleteRule, useRules, useSaveRule } from "../queries";
 
 const CATEGORIES = ["risk", "entry", "exit", "discipline"];
@@ -22,6 +23,7 @@ export function RulesManager() {
   const { data: rules = [] } = useRules(true);
   const saveRule = useSaveRule();
   const deleteRule = useDeleteRule();
+  const confirmDialog = useConfirm();
   const [text, setText] = React.useState("");
   const [category, setCategory] = React.useState("discipline");
   const [editingId, setEditingId] = React.useState<string | null>(null);
@@ -136,8 +138,13 @@ export function RulesManager() {
                       size="icon"
                       aria-label="Delete rule"
                       className="text-muted hover:text-loss"
-                      onClick={() =>
-                        confirm("Delete rule and its history?") && deleteRule.mutate(rule.id)
+                      onClick={async () =>
+                        (await confirmDialog({
+                          title: "Delete this rule?",
+                          description: "Its check-in history is deleted too.",
+                          confirmLabel: "Delete",
+                          destructive: true,
+                        })) && deleteRule.mutate(rule.id)
                       }
                     >
                       <Trash2 className="h-4 w-4" />

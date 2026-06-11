@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { cn, timeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ApiError, useAddComment, useDeleteComment, useToggleCommentLike } from "../api";
 import type { CommentView } from "../types";
 import { CommunityAvatar } from "./avatar";
@@ -94,6 +95,7 @@ export function CommentSection({ postId, comments }: { postId: string; comments:
   const addComment = useAddComment(postId);
   const deleteComment = useDeleteComment(postId);
   const toggleLike = useToggleCommentLike(postId);
+  const confirmDialog = useConfirm();
   const [body, setBody] = React.useState("");
   const [replyTo, setReplyTo] = React.useState<CommentView | null>(null);
   const [gateOpen, setGateOpen] = React.useState(false);
@@ -177,8 +179,13 @@ export function CommentSection({ postId, comments }: { postId: string; comments:
                 comment={c}
                 onReply={startReply}
                 onLike={like}
-                onDelete={(id) =>
-                  confirm("Delete this comment (and its replies)?") && deleteComment.mutate(id)
+                onDelete={async (id) =>
+                  (await confirmDialog({
+                    title: "Delete this comment?",
+                    description: "Its replies are deleted too.",
+                    confirmLabel: "Delete",
+                    destructive: true,
+                  })) && deleteComment.mutate(id)
                 }
               />
               {repliesFor(c.id).map((r) => (
@@ -188,7 +195,13 @@ export function CommentSection({ postId, comments }: { postId: string; comments:
                   isReply
                   onReply={startReply}
                   onLike={like}
-                  onDelete={(id) => confirm("Delete this reply?") && deleteComment.mutate(id)}
+                  onDelete={async (id) =>
+                    (await confirmDialog({
+                      title: "Delete this reply?",
+                      confirmLabel: "Delete",
+                      destructive: true,
+                    })) && deleteComment.mutate(id)
+                  }
                 />
               ))}
             </li>

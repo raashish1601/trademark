@@ -3,16 +3,17 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, Flag, Heart, Link2, MessageCircle, Share2, Trash2 } from "lucide-react";
+import { Bookmark, Flag, Heart, Link2, MessageCircle, Share2, Trash2, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { cn, timeAgo } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ApiError, useDeletePost, useToggleBookmark, useToggleLike } from "../api";
+import { ApiError, useDeletePost, useToggleBlock, useToggleBookmark, useToggleLike } from "../api";
 import type { PostView } from "../types";
 import { CommunityAvatar } from "./avatar";
 import { TradeCardView } from "./trade-card-view";
@@ -24,7 +25,9 @@ export function PostCard({ post, detail = false }: { post: PostView; detail?: bo
   const router = useRouter();
   const toggleLike = useToggleLike();
   const toggleBookmark = useToggleBookmark();
+  const toggleBlock = useToggleBlock(post.author.username);
   const deletePost = useDeletePost();
+  const confirmDialog = useConfirm();
   const [gateOpen, setGateOpen] = React.useState(false);
   const [reportOpen, setReportOpen] = React.useState(false);
   const [expanded, setExpanded] = React.useState(detail);
@@ -60,10 +63,34 @@ export function PostCard({ post, detail = false }: { post: PostView; detail?: bo
   };
 
   const handleDelete = async () => {
-    if (!confirm("Delete this post?")) return;
+    const ok = await confirmDialog({
+      title: "Delete this post?",
+      description: "Comments and likes go with it. This cannot be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     await deletePost.mutateAsync(post.id);
     toast.success("Post deleted");
     if (detail) router.replace("/community");
+  };
+
+  const handleBlock = async () => {
+    const ok = await confirmDialog({
+      title: `Block @${post.author.username}?`,
+      description:
+        "You won't see their posts or comments anywhere. You can unblock from their profile.",
+      confirmLabel: "Block",
+      destructive: true,
+    });
+    if (!ok) return;
+    toggleBlock.mutate(undefined, {
+      onSuccess: () => toast.success(`Blocked @${post.author.username}`),
+      onError: (e) =>
+        e instanceof ApiError && e.status === 401
+          ? onUnauthorized(handleBlock)
+          : toast.error("Could not block"),
+    });
   };
 
   const longBody = post.body.length > 420;
@@ -114,9 +141,14 @@ export function PostCard({ post, detail = false }: { post: PostView; detail?: bo
                 <Trash2 /> Delete post
               </DropdownMenuItem>
             ) : (
-              <DropdownMenuItem onClick={() => setReportOpen(true)}>
-                <Flag /> Report
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuItem onClick={() => setReportOpen(true)}>
+                  <Flag /> Report
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleBlock} className="text-loss">
+                  <UserX /> Block @{post.author.username}
+                </DropdownMenuItem>
+              </>
             )}
           </DropdownMenuContent>
         </DropdownMenu>

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Pencil, UserCheck, UserPlus } from "lucide-react";
+import { ArrowLeft, LinkIcon, Loader2, Pencil, UserCheck, UserPlus, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { timeAgo } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   CommunityAvatar,
   PostCard,
@@ -18,12 +19,14 @@ import {
   useUpdateProfile,
   useUserProfile,
 } from "@/features/community";
-import { ApiError, useToggleFollow } from "@/features/community/api";
+import { ApiError, useToggleBlock, useToggleFollow } from "@/features/community/api";
 
 export function ProfileView({ username }: { username: string }) {
   const { data, isLoading, isError } = useUserProfile(username);
   const updateProfile = useUpdateProfile();
   const toggleFollow = useToggleFollow(username);
+  const toggleBlock = useToggleBlock(username);
+  const confirmDialog = useConfirm();
   const [editOpen, setEditOpen] = React.useState(false);
   const [gateOpen, setGateOpen] = React.useState(false);
 
@@ -34,6 +37,26 @@ export function ProfileView({ username }: { username: string }) {
           ? setGateOpen(true)
           : toast.error("Could not follow"),
     });
+
+  const block = async (currentlyBlocked: boolean) => {
+    if (!currentlyBlocked) {
+      const ok = await confirmDialog({
+        title: `Block @${username}?`,
+        description: "You won't see their posts or comments anywhere.",
+        confirmLabel: "Block",
+        destructive: true,
+      });
+      if (!ok) return;
+    }
+    toggleBlock.mutate(undefined, {
+      onSuccess: (r) =>
+        toast.success(r.blocked ? `Blocked @${username}` : `Unblocked @${username}`),
+      onError: (e) =>
+        e instanceof ApiError && e.status === 401
+          ? setGateOpen(true)
+          : toast.error("Could not update block"),
+    });
+  };
 
   if (isLoading) {
     return (
@@ -57,6 +80,7 @@ export function ProfileView({ username }: { username: string }) {
         username: newUsername || undefined,
         displayName: String(form.get("displayName")) || undefined,
         bio: String(form.get("bio") ?? ""),
+        website: String(form.get("website") ?? ""),
       });
       toast.success("Profile updated");
       setEditOpen(false);
@@ -85,6 +109,17 @@ export function ProfileView({ username }: { username: string }) {
           {profile.bio && (
             <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{profile.bio}</p>
           )}
+          {profile.website && (
+            <a
+              href={profile.website}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="mt-1.5 inline-flex items-center gap-1 text-xs text-accent hover:underline"
+            >
+              <LinkIcon className="h-3 w-3" aria-hidden />
+              {profile.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
+            </a>
+          )}
           <p className="mt-2 text-xs text-muted">
             <span className="font-medium text-foreground">{profile.followerCount}</span> followers ·{" "}
             <span className="font-medium text-foreground">{profile.followingCount}</span> following
@@ -97,25 +132,47 @@ export function ProfileView({ username }: { username: string }) {
             <Pencil className="h-3.5 w-3.5" aria-hidden /> Edit
           </Button>
         ) : (
-          <Button
-            variant={profile.followedByMe ? "outline" : "default"}
-            size="sm"
-            onClick={follow}
-            disabled={toggleFollow.isPending}
-            aria-pressed={profile.followedByMe}
-          >
-            {profile.followedByMe ? (
-              <>
-                <UserCheck className="h-3.5 w-3.5" aria-hidden /> Following
-              </>
-            ) : (
-              <>
-                <UserPlus className="h-3.5 w-3.5" aria-hidden /> Follow
-              </>
+          <div className="flex flex-col items-end gap-1.5">
+            {!profile.blockedByMe && (
+              <Button
+                variant={profile.followedByMe ? "outline" : "default"}
+                size="sm"
+                onClick={follow}
+                disabled={toggleFollow.isPending}
+                aria-pressed={profile.followedByMe}
+              >
+                {profile.followedByMe ? (
+                  <>
+                    <UserCheck className="h-3.5 w-3.5" aria-hidden /> Following
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-3.5 w-3.5" aria-hidden /> Follow
+                  </>
+                )}
+              </Button>
             )}
-          </Button>
+            <Button
+              variant={profile.blockedByMe ? "destructive" : "ghost"}
+              size="sm"
+              onClick={() => block(profile.blockedByMe)}
+              disabled={toggleBlock.isPending}
+              aria-pressed={profile.blockedByMe}
+              className={profile.blockedByMe ? "" : "text-muted hover:text-loss"}
+            >
+              <UserX className="h-3.5 w-3.5" aria-hidden />
+              {profile.blockedByMe ? "Unblock" : "Block"}
+            </Button>
+          </div>
         )}
       </header>
+
+      {profile.blockedByMe && (
+        <p className="mt-3 rounded-lg border border-loss/30 bg-loss/5 px-3 py-2 text-xs text-muted">
+          You&apos;ve blocked @{profile.username} — their posts and comments are hidden from your
+          feeds.
+        </p>
+      )}
 
       <section aria-label={`Posts by ${profile.displayName}`} className="mt-5 space-y-3">
         {posts.length === 0 ? (
@@ -162,6 +219,17 @@ export function ProfileView({ username }: { username: string }) {
                 maxLength={280}
                 rows={3}
                 placeholder="Index options scalper · 3 years in the market"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pf-website">Website / X profile (optional)</Label>
+              <Input
+                id="pf-website"
+                name="website"
+                type="url"
+                defaultValue={profile.website ?? ""}
+                maxLength={120}
+                placeholder="https://x.com/yourhandle"
               />
             </div>
             <Button

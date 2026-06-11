@@ -15,6 +15,7 @@ export async function GET() {
     username: profile!.username,
     displayName: profile!.displayName,
     bio: profile!.bio,
+    website: profile!.website,
   });
 }
 
@@ -51,6 +52,7 @@ export async function PUT(req: Request) {
       ...(input.username ? { username: input.username } : {}),
       ...(input.displayName ? { displayName: input.displayName.trim() } : {}),
       ...(input.bio !== undefined ? { bio: input.bio.trim() || null } : {}),
+      ...(input.website !== undefined ? { website: input.website.trim() || null } : {}),
     })
     .where(eq(profiles.userId, session.user.id));
 

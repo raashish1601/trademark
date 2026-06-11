@@ -53,11 +53,13 @@ export interface ProfileView {
   username: string;
   displayName: string;
   bio: string | null;
+  website: string | null;
   createdAt: string;
   postCount: number;
   followerCount: number;
   followingCount: number;
   followedByMe: boolean;
+  blockedByMe: boolean;
 }
 
 export interface NotificationView {

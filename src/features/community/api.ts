@@ -205,6 +205,22 @@ export function useToggleFollow(username: string) {
   });
 }
 
+/** Blocking removes the user's content from all of the viewer's feeds. */
+export function useToggleBlock(username: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      request<{ blocked: boolean }>(`/api/community/users/${encodeURIComponent(username)}/block`, {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["community-user", username] });
+      void qc.invalidateQueries({ queryKey: ["community-feed"] });
+      void qc.invalidateQueries({ queryKey: ["community-post"] });
+    },
+  });
+}
+
 export function useNotifications(enabled: boolean) {
   return useQuery({
     queryKey: ["community-notifications"],

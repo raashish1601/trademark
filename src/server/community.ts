@@ -76,9 +76,17 @@ export async function ensureProfile(userId: string, name: string) {
       .replace(/_+/g, "_")
       .replace(/^_|_$/g, "")
       .slice(0, 14) || "trader";
-  for (let attempt = 0; attempt < 8; attempt++) {
-    const suffix = attempt === 0 ? "" : `_${Math.floor(100 + Math.random() * 900)}`;
-    const username = `${base}${suffix}`;
+  // Widen the random space as attempts grow; final attempts use a base36 tail
+  // derived from the userId so allocation can't fail under contention.
+  for (let attempt = 0; attempt < 12; attempt++) {
+    let suffix = "";
+    if (attempt > 0 && attempt < 8) suffix = `_${Math.floor(1000 + Math.random() * 9000)}`;
+    else if (attempt >= 8)
+      suffix = `_${userId
+        .replace(/[^a-z0-9]/gi, "")
+        .slice(-6)
+        .toLowerCase()}${attempt}`;
+    const username = `${base}${suffix}`.slice(0, 20);
     if (RESERVED_USERNAMES.has(username)) continue;
     try {
       await platformDb.insert(profiles).values({
@@ -89,7 +97,10 @@ export async function ensureProfile(userId: string, name: string) {
       });
       return platformDb.select().from(profiles).where(eq(profiles.userId, userId)).get();
     } catch {
-      /* username collision — retry with suffix */
+      // Another request may have created this profile concurrently — reuse it.
+      const now = await platformDb.select().from(profiles).where(eq(profiles.userId, userId)).get();
+      if (now) return now;
+      /* else username collision — retry with a different suffix */
     }
   }
   throw new Error("Could not allocate a username");
@@ -190,6 +201,12 @@ export interface FeedQuery {
 export async function queryFeed(q: FeedQuery, viewerId: string | null) {
   const limit = q.limit ?? 15;
   const conditions = [];
+  if (viewerId) {
+    // Blocked users vanish from the viewer's feeds entirely.
+    conditions.push(
+      sql`${posts.userId} NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ${viewerId})`
+    );
+  }
   if (q.authorUserId) conditions.push(eq(posts.userId, q.authorUserId));
   if (q.tag) conditions.push(sql`${posts.tags} LIKE ${`%"${q.tag}"%`}`);
   if (q.scope === "following" && viewerId) {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq, asc, and, inArray } from "drizzle-orm";
 import { platformDb } from "@/server/db/platform";
-import { commentLikes, comments, posts, profiles } from "@/server/db/platform-schema";
+import { blocks, commentLikes, comments, posts, profiles } from "@/server/db/platform-schema";
 import { deletePostCascade, getSession, hydratePosts } from "@/server/community";
 import { isAllowedOrigin } from "@/server/origin-check";
 import type { CommentView } from "@/features/community/types";
@@ -13,11 +13,22 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (!row) return NextResponse.json({ error: "Post not found" }, { status: 404 });
 
   const [post] = await hydratePosts([row], session?.user.id ?? null);
-  const commentRows = await platformDb
+  let commentRows = await platformDb
     .select()
     .from(comments)
     .where(eq(comments.postId, id))
     .orderBy(asc(comments.createdAt));
+  if (session && commentRows.length) {
+    // Blocked users' comments are hidden from the viewer.
+    const myBlocks = await platformDb
+      .select({ blockedId: blocks.blockedId })
+      .from(blocks)
+      .where(eq(blocks.blockerId, session.user.id));
+    if (myBlocks.length) {
+      const blocked = new Set(myBlocks.map((b) => b.blockedId));
+      commentRows = commentRows.filter((c) => !blocked.has(c.userId));
+    }
+  }
   const authorIds = [...new Set(commentRows.map((c) => c.userId))];
   const commentIds = commentRows.map((c) => c.id);
   const [authors, myCommentLikes] = await Promise.all([

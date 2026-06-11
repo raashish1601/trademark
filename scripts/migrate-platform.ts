@@ -175,6 +175,12 @@ const STATEMENTS = [
     read INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS blocks (
+    blocker_id TEXT NOT NULL,
+    blocked_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (blocker_id, blocked_id)
+  )`,
   `CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications (user_id, read, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_follows_following ON follows (following_id)`,
   `CREATE INDEX IF NOT EXISTS idx_posts_created ON posts (created_at DESC)`,
@@ -205,6 +211,7 @@ async function main() {
   const ALTERS = [
     `ALTER TABLE comments ADD COLUMN parent_id TEXT`,
     `ALTER TABLE comments ADD COLUMN like_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE profiles ADD COLUMN website TEXT`,
   ];
   for (const sql of ALTERS) {
     try {

@@ -114,9 +114,11 @@ await step("profile page shows the post", async () => {
   await page.getByText(MARKER).first().waitFor({ timeout: 15000 });
 });
 
-await step("author can delete the post", async () => {
+await step("author can delete the post (in-app confirm)", async () => {
   await page.getByLabel("Post options").first().click();
   await page.getByText("Delete post").click();
+  const modal = page.getByRole("dialog").filter({ hasText: "Delete this post?" });
+  await modal.getByRole("button", { name: "Delete" }).click();
   await page.getByText("Post deleted").waitFor({ timeout: 15000 });
 });
 

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { PnlText } from "@/components/shared/pnl-text";
 import { TagChip } from "@/components/shared/tag-chip";
 import { compressImage, imageFromClipboard } from "@/lib/images";
@@ -30,6 +31,7 @@ export function TradeDetail({ id }: { id: string }) {
   const [editOpen, setEditOpen] = React.useState(false);
   const [shareOpen, setShareOpen] = React.useState(false);
   const editDirtyRef = React.useRef(false);
+  const confirmDialog = useConfirm();
 
   React.useEffect(() => {
     const onPaste = async (e: ClipboardEvent) => {
@@ -66,10 +68,26 @@ export function TradeDetail({ id }: { id: string }) {
     confidence: trade.confidence ?? undefined,
     notes: trade.notes ?? undefined,
     tagIds: trade.tags.map((t) => t.id),
+    // Multi-leg trades keep their individual fills editable.
+    legs:
+      trade.fills.length > 2
+        ? trade.fills.map((f) => ({
+            side: f.side as "buy" | "sell",
+            qty: f.qty,
+            price: f.price,
+            time: isoToLocalInput(f.fill_time),
+          }))
+        : undefined,
   };
 
   const handleDelete = async () => {
-    if (!confirm("Delete this trade? This cannot be undone.")) return;
+    const ok = await confirmDialog({
+      title: "Delete this trade?",
+      description: "Journal links and attachments go with it. This cannot be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     await deleteTrade.mutateAsync(id);
     toast.success("Trade deleted");
     router.replace("/app/trades");

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { timeAgo } from "@/lib/utils";
 
 interface ReportRow {
@@ -22,6 +23,7 @@ interface ReportRow {
 /** Moderation queue: review reported content, dismiss or remove it. */
 export function ReportsTab() {
   const qc = useQueryClient();
+  const confirmDialog = useConfirm();
   const { data, isLoading } = useQuery({
     queryKey: ["admin-reports"],
     queryFn: async () => {
@@ -105,9 +107,13 @@ export function ReportsTab() {
                 variant="destructive"
                 size="sm"
                 disabled={act.isPending}
-                onClick={() =>
-                  confirm("Delete the reported content? This cannot be undone.") &&
-                  act.mutate({ reportId: r.id, action: "delete-content" })
+                onClick={async () =>
+                  (await confirmDialog({
+                    title: "Delete the reported content?",
+                    description: "This cannot be undone.",
+                    confirmLabel: "Remove content",
+                    destructive: true,
+                  })) && act.mutate({ reportId: r.id, action: "delete-content" })
                 }
               >
                 <Trash2 aria-hidden /> Remove content

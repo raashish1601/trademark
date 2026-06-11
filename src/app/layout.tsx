@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import NextTopLoader from "nextjs-toploader";
 import { ThemeProvider } from "@/providers/theme-provider";
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { PwaRegister } from "@/components/pwa-register";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { siteConfig } from "@/config/site";
@@ -66,7 +67,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           />
           <PwaRegister />
           <AnalyticsTracker />
-          {children}
+          <ConfirmProvider>{children}</ConfirmProvider>
           <Toaster
             position="top-center"
             toastOptions={{

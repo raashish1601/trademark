@@ -63,8 +63,20 @@ export const profiles = sqliteTable("profiles", {
   username: text("username").notNull().unique(),
   displayName: text("display_name").notNull(),
   bio: text("bio"),
+  website: text("website"),
   createdAt: text("created_at").notNull(),
 });
+
+/** One-way blocks: the blocker stops seeing the blocked user's content. */
+export const blocks = sqliteTable(
+  "blocks",
+  {
+    blockerId: text("blocker_id").notNull(),
+    blockedId: text("blocked_id").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.blockerId, t.blockedId] })]
+);
 
 export const posts = sqliteTable("posts", {
   id: text("id").primaryKey(),

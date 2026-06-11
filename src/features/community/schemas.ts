@@ -45,6 +45,7 @@ export const updateProfileSchema = z.object({
     .optional(),
   displayName: z.string().min(1).max(40).optional(),
   bio: z.string().max(280).optional(),
+  website: z.string().url("Enter a full URL (https://…)").max(120).or(z.literal("")).optional(),
 });
 
 export const REPORT_REASONS = [

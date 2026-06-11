@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { platformDb } from "@/server/db/platform";
-import { follows, posts, profiles } from "@/server/db/platform-schema";
+import { blocks, follows, posts, profiles } from "@/server/db/platform-schema";
 import { getSession, queryFeed } from "@/server/community";
 
 /** Public profile + their posts. */
@@ -54,16 +54,26 @@ export async function GET(req: Request, ctx: { params: Promise<{ username: strin
         : Promise.resolve(undefined),
     ]);
 
+  const myBlock = session
+    ? await platformDb
+        .select()
+        .from(blocks)
+        .where(and(eq(blocks.blockerId, session.user.id), eq(blocks.blockedId, profile.userId)))
+        .get()
+    : undefined;
+
   return NextResponse.json({
     profile: {
       username: profile.username,
       displayName: profile.displayName,
       bio: profile.bio,
+      website: profile.website,
       createdAt: profile.createdAt,
       postCount: Number(countRow?.count ?? 0),
       followerCount: Number(followerRow?.count ?? 0),
       followingCount: Number(followingRow?.count ?? 0),
       followedByMe: Boolean(myFollow),
+      blockedByMe: Boolean(myBlock),
       mine: session?.user.id === profile.userId,
     },
     posts: userPosts,
