@@ -1,0 +1,5 @@
+# Local build/test artifacts — never upload with CLI deploys
+.next
+.next-e2e
+node_modules
+e2e-fail-*.png

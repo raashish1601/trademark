@@ -42,9 +42,12 @@ export function Topbar() {
   const mode = state.status === "ready" ? state.mode : null;
   const ModeIcon = mode ? MODE_META[mode].icon : Database;
 
-  // Surfaces the admin link for ADMIN_EMAILS accounts (hosted sessions only).
+  // Surfaces the admin link for ADMIN_EMAILS accounts. Only hosted users can
+  // have a session, so skip the request entirely in byod/local/demo modes —
+  // an unconditional fetch would 401 (console noise) on every page.
   const { data: status } = useQuery({
     queryKey: ["db-status"],
+    enabled: mode === "hosted",
     queryFn: async () => {
       const res = await fetch("/api/db/status");
       if (!res.ok) return null;
