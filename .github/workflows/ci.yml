@@ -21,7 +21,10 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      # `npm install` (not `npm ci`): the repo is developed on Windows while CI
+      # runs on Linux, so platform-specific optional deps (@emnapi/*) aren't in
+      # the Windows-generated lockfile. install tolerates that drift.
+      - run: npm install --no-audit --no-fund
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
