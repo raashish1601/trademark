@@ -4,7 +4,6 @@ import { useFilterStore, periodToRange } from "@/stores/filter-store";
 import { useTrades } from "@/features/trades";
 import { useAdherence } from "@/features/rules";
 import { KpiRow, EquityChart, RecentTrades } from "@/features/dashboard";
-import { StreakCard } from "@/features/streak";
 import { DailyChecklist, MistakesPanel } from "@/features/rules";
 import { MonthHeatmap } from "@/features/calendar";
 import { useJournalDates } from "@/features/journal";
@@ -40,7 +39,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      <StreakCard />
       <KpiRow trades={trades} adherencePct={adherence?.overallPct} />
 
       <div className="grid gap-4 lg:grid-cols-3">

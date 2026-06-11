@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { platformDb } from "@/server/db/platform";
-import { blocks, follows, posts, profiles } from "@/server/db/platform-schema";
+import { blocks, follows, posts, profiles, user } from "@/server/db/platform-schema";
 import { getSession, queryFeed } from "@/server/community";
 
 /** Public profile + their posts. */
@@ -62,13 +62,22 @@ export async function GET(req: Request, ctx: { params: Promise<{ username: strin
         .get()
     : undefined;
 
+  // "Joined" = account signup, not when the community profile row was created
+  // (those can differ by days if the user signed up before first interacting).
+  const account = await platformDb
+    .select({ createdAt: user.createdAt })
+    .from(user)
+    .where(eq(user.id, profile.userId))
+    .get();
+  const joinedAt = account ? account.createdAt.toISOString() : profile.createdAt;
+
   return NextResponse.json({
     profile: {
       username: profile.username,
       displayName: profile.displayName,
       bio: profile.bio,
       website: profile.website,
-      createdAt: profile.createdAt,
+      createdAt: joinedAt,
       postCount: Number(countRow?.count ?? 0),
       followerCount: Number(followerRow?.count ?? 0),
       followingCount: Number(followingRow?.count ?? 0),

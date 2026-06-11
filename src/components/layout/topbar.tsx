@@ -4,8 +4,18 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useQuery } from "@tanstack/react-query";
-import { Cloud, Database, HardDrive, LogOut, MessageSquarePlus, Moon, Search, ShieldCheck } from "lucide-react";
+import {
+  Cloud,
+  Database,
+  HardDrive,
+  LogOut,
+  MessageSquarePlus,
+  Moon,
+  Search,
+  ShieldCheck,
+} from "lucide-react";
 import { FeedbackDialog } from "@/components/shared/feedback-dialog";
+import { StreakIndicator } from "@/features/streak";
 import { NAV_ITEMS } from "@/config/nav";
 import { useFilterStore, PERIOD_LABELS, type PeriodPreset } from "@/stores/filter-store";
 import { useUiStore } from "@/stores/ui-store";
@@ -22,7 +32,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const MODE_META = {
   hosted: { icon: Cloud, label: "Hosted" },
@@ -65,12 +81,17 @@ export function Topbar() {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-bg/85 backdrop-blur px-4">
-      <Link href="/app/dashboard" className="text-sm font-semibold md:hidden" aria-label="TradeMark dashboard">
+      <Link
+        href="/app/dashboard"
+        className="text-sm font-semibold md:hidden"
+        aria-label="TradeMark dashboard"
+      >
         Trade<span className="text-accent">Mark</span>
       </Link>
       <h1 className="hidden md:block text-sm font-semibold">{title}</h1>
 
       <div className="ml-auto flex items-center gap-2">
+        <StreakIndicator />
         <FeedbackDialog
           trigger={
             <Button variant="ghost" size="icon" aria-label="Send feedback">
