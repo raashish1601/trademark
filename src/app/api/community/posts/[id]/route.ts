@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { eq, asc, inArray } from "drizzle-orm";
+import { eq, asc, and, inArray } from "drizzle-orm";
 import { platformDb } from "@/server/db/platform";
-import { comments, posts, profiles } from "@/server/db/platform-schema";
+import { commentLikes, comments, posts, profiles } from "@/server/db/platform-schema";
 import { deletePostCascade, getSession, hydratePosts } from "@/server/community";
 import { isAllowedOrigin } from "@/server/origin-check";
 import type { CommentView } from "@/features/community/types";
@@ -19,16 +19,34 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     .where(eq(comments.postId, id))
     .orderBy(asc(comments.createdAt));
   const authorIds = [...new Set(commentRows.map((c) => c.userId))];
-  const authors = authorIds.length
-    ? await platformDb.select().from(profiles).where(inArray(profiles.userId, authorIds))
-    : [];
+  const commentIds = commentRows.map((c) => c.id);
+  const [authors, myCommentLikes] = await Promise.all([
+    authorIds.length
+      ? platformDb.select().from(profiles).where(inArray(profiles.userId, authorIds))
+      : Promise.resolve([]),
+    session && commentIds.length
+      ? platformDb
+          .select({ commentId: commentLikes.commentId })
+          .from(commentLikes)
+          .where(
+            and(
+              eq(commentLikes.userId, session.user.id),
+              inArray(commentLikes.commentId, commentIds)
+            )
+          )
+      : Promise.resolve([] as { commentId: string }[]),
+  ]);
   const authorMap = new Map(authors.map((a) => [a.userId, a]));
+  const likedSet = new Set(myCommentLikes.map((l) => l.commentId));
 
   const commentViews: CommentView[] = commentRows.map((c) => {
     const a = authorMap.get(c.userId);
     return {
       id: c.id,
       body: c.body,
+      parentId: c.parentId,
+      likeCount: c.likeCount,
+      likedByMe: likedSet.has(c.id),
       createdAt: c.createdAt,
       mine: session?.user.id === c.userId,
       author: a

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { NotebookPen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
+import { NotificationsBell } from "@/features/community";
 import { QueryProvider } from "@/providers/query-provider";
 
 export const metadata: Metadata = {
@@ -18,11 +19,14 @@ export default function CommunityLayout({ children }: { children: React.ReactNod
       <div className="flex min-h-dvh flex-col">
         <SiteHeader
           cta={
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/app/dashboard">
-                <NotebookPen className="h-3.5 w-3.5" aria-hidden /> My journal
-              </Link>
-            </Button>
+            <>
+              <NotificationsBell />
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/app/dashboard">
+                  <NotebookPen className="h-3.5 w-3.5" aria-hidden /> My journal
+                </Link>
+              </Button>
+            </>
           }
         />
         <main className="flex-1">{children}</main>

@@ -7,7 +7,7 @@ import {
   useQueryClient,
   type InfiniteData,
 } from "@tanstack/react-query";
-import type { CommentView, FeedResponse, PostView, ProfileView } from "./types";
+import type { CommentView, FeedResponse, NotificationView, PostView, ProfileView } from "./types";
 import type { CreatePostInput, UpdateProfileInput } from "./schemas";
 
 export class ApiError extends Error {
@@ -30,15 +30,23 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export type FeedSort = "latest" | "top";
+export type FeedScope = "all" | "following" | "saved";
 
-export function useFeed(sort: FeedSort, tag: string | null, search: string | null = null) {
+export function useFeed(
+  sort: FeedSort,
+  tag: string | null,
+  search: string | null = null,
+  scope: FeedScope = "all"
+) {
   return useInfiniteQuery({
-    queryKey: ["community-feed", sort, tag, search],
+    queryKey: ["community-feed", sort, tag, search, scope],
     queryFn: ({ pageParam }) =>
       request<FeedResponse>(
         `/api/community/posts?sort=${sort}${tag ? `&tag=${encodeURIComponent(tag)}` : ""}${
           search ? `&q=${encodeURIComponent(search)}` : ""
-        }${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ""}`
+        }${scope !== "all" ? `&scope=${scope}` : ""}${
+          pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ""
+        }`
       ),
     initialPageParam: "",
     getNextPageParam: (last) => last.nextCursor ?? undefined,
@@ -57,7 +65,8 @@ export function useTrendingTags() {
 export function usePost(id: string) {
   return useQuery({
     queryKey: ["community-post", id],
-    queryFn: () => request<{ post: PostView; comments: CommentView[] }>(`/api/community/posts/${id}`),
+    queryFn: () =>
+      request<{ post: PostView; comments: CommentView[] }>(`/api/community/posts/${id}`),
   });
 }
 
@@ -65,7 +74,10 @@ export function useCreatePost() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreatePostInput) =>
-      request<{ id: string }>("/api/community/posts", { method: "POST", body: JSON.stringify(input) }),
+      request<{ id: string }>("/api/community/posts", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["community-feed"] }),
   });
 }
@@ -115,13 +127,112 @@ export function useToggleLike() {
   });
 }
 
+/** Optimistic bookmark toggle — mirrors the like pattern. */
+export function useToggleBookmark() {
+  const qc = useQueryClient();
+  const patchPost = (post: PostView): PostView => ({
+    ...post,
+    bookmarkedByMe: !post.bookmarkedByMe,
+  });
+  const patchEverywhere = (id: string) => {
+    qc.setQueriesData<InfiniteData<FeedResponse>>({ queryKey: ["community-feed"] }, (data) =>
+      data
+        ? {
+            ...data,
+            pages: data.pages.map((p) => ({
+              ...p,
+              posts: p.posts.map((post) => (post.id === id ? patchPost(post) : post)),
+            })),
+          }
+        : data
+    );
+    qc.setQueryData<{ post: PostView; comments: CommentView[] }>(["community-post", id], (data) =>
+      data ? { ...data, post: patchPost(data.post) } : data
+    );
+  };
+  return useMutation({
+    mutationFn: (id: string) =>
+      request<{ bookmarked: boolean }>(`/api/community/posts/${id}/bookmark`, { method: "POST" }),
+    onMutate: (id) => patchEverywhere(id),
+    onError: (_e, id) => patchEverywhere(id),
+  });
+}
+
+export function useToggleCommentLike(postId: string) {
+  const qc = useQueryClient();
+  const patch = (commentId: string) => {
+    qc.setQueryData<{ post: PostView; comments: CommentView[] }>(
+      ["community-post", postId],
+      (data) =>
+        data
+          ? {
+              ...data,
+              comments: data.comments.map((c) =>
+                c.id === commentId
+                  ? {
+                      ...c,
+                      likedByMe: !c.likedByMe,
+                      likeCount: c.likeCount + (c.likedByMe ? -1 : 1),
+                    }
+                  : c
+              ),
+            }
+          : data
+    );
+  };
+  return useMutation({
+    mutationFn: (commentId: string) =>
+      request<{ liked: boolean }>(`/api/community/comments/${commentId}/like`, { method: "POST" }),
+    onMutate: patch,
+    onError: (_e, commentId) => patch(commentId),
+  });
+}
+
+export function useToggleFollow(username: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      request<{ following: boolean }>(
+        `/api/community/users/${encodeURIComponent(username)}/follow`,
+        {
+          method: "POST",
+        }
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["community-user", username] });
+      void qc.invalidateQueries({ queryKey: ["community-feed"] });
+    },
+  });
+}
+
+export function useNotifications(enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-notifications"],
+    queryFn: () =>
+      request<{ notifications: NotificationView[]; unread: number }>(
+        "/api/community/notifications"
+      ),
+    enabled,
+    refetchInterval: 60_000,
+    retry: false,
+  });
+}
+
+export function useMarkNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => request("/api/community/notifications", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["community-notifications"] }),
+  });
+}
+
 export function useAddComment(postId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: string) =>
+    mutationFn: ({ body, parentId }: { body: string; parentId?: string | null }) =>
       request<CommentView>(`/api/community/posts/${postId}/comments`, {
         method: "POST",
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({ body, parentId }),
       }),
     onSuccess: (comment) => {
       qc.setQueryData<{ post: PostView; comments: CommentView[] }>(
@@ -150,7 +261,10 @@ export function useDeleteComment(postId: string) {
 export function useMyProfile(enabled: boolean) {
   return useQuery({
     queryKey: ["community-me"],
-    queryFn: () => request<{ username: string; displayName: string; bio: string | null }>("/api/community/profile"),
+    queryFn: () =>
+      request<{ username: string; displayName: string; bio: string | null }>(
+        "/api/community/profile"
+      ),
     enabled,
     retry: false,
   });
@@ -169,15 +283,21 @@ export function useUserProfile(username: string) {
   return useQuery({
     queryKey: ["community-user", username],
     queryFn: () =>
-      request<{ profile: ProfileView & { mine: boolean }; posts: PostView[]; nextCursor: string | null }>(
-        `/api/community/users/${encodeURIComponent(username)}`
-      ),
+      request<{
+        profile: ProfileView & { mine: boolean };
+        posts: PostView[];
+        nextCursor: string | null;
+      }>(`/api/community/users/${encodeURIComponent(username)}`),
   });
 }
 
 export function useReport() {
   return useMutation({
-    mutationFn: (input: { targetType: "post" | "comment"; targetId: string; reason?: string }) =>
-      request("/api/community/report", { method: "POST", body: JSON.stringify(input) }),
+    mutationFn: (input: {
+      targetType: "post" | "comment";
+      targetId: string;
+      reason: "spam" | "harassment" | "advice" | "other";
+      note?: string;
+    }) => request("/api/community/report", { method: "POST", body: JSON.stringify(input) }),
   });
 }

@@ -12,7 +12,9 @@ const PASSWORD = "e2e-Passw0rd-123";
 const MARKER = `E2E post ${Date.now()}`;
 
 const browser = await chromium.launch();
-const page = await browser.newContext({ viewport: { width: 1380, height: 900 } }).then((c) => c.newPage());
+const page = await browser
+  .newContext({ viewport: { width: 1380, height: 900 } })
+  .then((c) => c.newPage());
 page.on("dialog", (d) => d.accept());
 const issues = [];
 page.on("pageerror", (e) => issues.push(`[pageerror] ${String(e.message).slice(0, 200)}`));
@@ -38,7 +40,9 @@ await step("feed renders logged-out", async () => {
 
 await step("compose → sign-in gate → sign up → posts", async () => {
   await page.getByRole("button", { name: "Write a post" }).first().click();
-  await page.getByLabel("Your post").fill(`${MARKER} — testing the community end to end. NIFTY looked great today.`);
+  await page
+    .getByLabel("Your post")
+    .fill(`${MARKER} — testing the community end to end. NIFTY looked great today.`);
   await page.getByRole("button", { name: "#nifty" }).click();
   await page.getByRole("button", { name: "Post", exact: true }).click();
   // not signed in → gate appears
@@ -62,15 +66,50 @@ await step("like is optimistic", async () => {
 });
 
 await step("post page + comment", async () => {
-  await page.getByRole("link", { name: /comments?$/ }).first().click();
+  await page
+    .getByRole("link", { name: /comments?$/ })
+    .first()
+    .click();
   await page.waitForURL("**/community/post/**", { timeout: 20000 });
   await page.getByLabel("Write a comment").fill("Nice one — what was the SL?");
   await page.getByRole("button", { name: "Comment", exact: true }).click();
   await page.getByText("Nice one — what was the SL?").waitFor({ timeout: 15000 });
 });
 
+await step("v2: like a comment (optimistic)", async () => {
+  await page.getByLabel("Like comment").first().click();
+  await page.getByLabel("Unlike comment").first().waitFor({ timeout: 10000 });
+});
+
+await step("v2: threaded reply", async () => {
+  // The LAST "Reply" button is the comment's action (composer submit comes first in DOM).
+  await page.getByRole("button", { name: "Reply" }).last().click();
+  await page.getByText(/Replying to @/).waitFor({ timeout: 5000 });
+  await page
+    .getByLabel("Write a comment")
+    .fill("Replying to my own take — SL was below the range.");
+  await page.getByRole("button", { name: "Reply", exact: true }).first().click();
+  await page.getByText("Replying to my own take").waitFor({ timeout: 15000 });
+});
+
+await step("v2: bookmark → appears under Saved", async () => {
+  await page.goto(`${BASE}/community`, { waitUntil: "networkidle" });
+  await page.getByLabel("Save post").first().click();
+  await page.getByText("Saved — find it under Saved").waitFor({ timeout: 10000 });
+  await page.getByRole("button", { name: "Saved", exact: true }).first().click();
+  await page.getByText(MARKER).first().waitFor({ timeout: 15000 });
+  await page.getByRole("button", { name: "Latest", exact: true }).first().click();
+});
+
+await step("v2: notifications bell renders for signed-in user", async () => {
+  await page.locator('header button[aria-label^="Notifications"]').waitFor({ timeout: 10000 });
+});
+
 await step("profile page shows the post", async () => {
-  await page.getByRole("link", { name: /profile$/ }).first().click();
+  await page
+    .getByRole("link", { name: /profile$/ })
+    .first()
+    .click();
   await page.waitForURL("**/community/u/**", { timeout: 20000 });
   await page.getByText(MARKER).first().waitFor({ timeout: 15000 });
 });

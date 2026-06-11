@@ -11,6 +11,7 @@ import { RichContent } from "@/components/ui/rich-editor";
 import { timeAgo } from "@/lib/utils";
 import { AnalyticsTab } from "./analytics-tab";
 import { FeedbackTab } from "./feedback-tab";
+import { ReportsTab } from "./reports-tab";
 
 interface Submission {
   id: string;
@@ -29,16 +30,22 @@ export function AdminPanel() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold">Admin</h1>
-        <p className="mt-1 text-sm text-muted">Blog review, user feedback, and platform analytics.</p>
+        <p className="mt-1 text-sm text-muted">
+          Blog review, content reports, user feedback, and platform analytics.
+        </p>
       </div>
       <Tabs defaultValue="submissions">
         <TabsList>
           <TabsTrigger value="submissions">Blog submissions</TabsTrigger>
+          <TabsTrigger value="reports">Reports</TabsTrigger>
           <TabsTrigger value="feedback">Feedback</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
         <TabsContent value="submissions">
           <SubmissionsTab />
+        </TabsContent>
+        <TabsContent value="reports">
+          <ReportsTab />
         </TabsContent>
         <TabsContent value="feedback">
           <FeedbackTab />
@@ -119,7 +126,11 @@ function SubmissionsTab() {
                       disabled={review.isPending}
                       onClick={() => review.mutate({ id: s.id, action: "approve" })}
                     >
-                      {review.isPending ? <Loader2 className="animate-spin" aria-hidden /> : <Check aria-hidden />}
+                      {review.isPending ? (
+                        <Loader2 className="animate-spin" aria-hidden />
+                      ) : (
+                        <Check aria-hidden />
+                      )}
                       Approve
                     </Button>
                     <Button
@@ -135,8 +146,13 @@ function SubmissionsTab() {
               </div>
               <p className="mt-2 text-sm text-muted">{s.excerpt}</p>
               <details className="mt-3">
-                <summary className="cursor-pointer text-xs font-medium text-accent">Preview full article</summary>
-                <RichContent html={s.contentHtml} className="mt-3 rounded-lg border bg-surface-2/30 p-4 text-sm" />
+                <summary className="cursor-pointer text-xs font-medium text-accent">
+                  Preview full article
+                </summary>
+                <RichContent
+                  html={s.contentHtml}
+                  className="mt-3 rounded-lg border bg-surface-2/30 p-4 text-sm"
+                />
               </details>
             </article>
           ))}

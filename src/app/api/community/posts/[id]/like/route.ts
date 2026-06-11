@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { platformDb } from "@/server/db/platform";
 import { likes, posts } from "@/server/db/platform-schema";
-import { ensureProfile, getSession } from "@/server/community";
+import { ensureProfile, getSession, notify } from "@/server/community";
 import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
 
@@ -16,7 +16,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const { allowed } = await rateLimit(`like:${session.user.id}`, 60, 3600);
   if (!allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
-  const post = await platformDb.select({ id: posts.id }).from(posts).where(eq(posts.id, id)).get();
+  const post = await platformDb
+    .select({ id: posts.id, userId: posts.userId })
+    .from(posts)
+    .where(eq(posts.id, id))
+    .get();
   if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
   await ensureProfile(session.user.id, session.user.name);
 
@@ -28,7 +32,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   let liked: boolean;
   if (existing) {
-    await platformDb.delete(likes).where(and(eq(likes.postId, id), eq(likes.userId, session.user.id)));
+    await platformDb
+      .delete(likes)
+      .where(and(eq(likes.postId, id), eq(likes.userId, session.user.id)));
     await platformDb
       .update(posts)
       .set({ likeCount: sql`MAX(0, ${posts.likeCount} - 1)` })
@@ -44,6 +50,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       .update(posts)
       .set({ likeCount: sql`${posts.likeCount} + 1` })
       .where(eq(posts.id, id));
+    await notify({ userId: post.userId, actorId: session.user.id, type: "like", postId: id });
     liked = true;
   }
   const updated = await platformDb

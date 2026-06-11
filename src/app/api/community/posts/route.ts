@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { newId } from "@/lib/id";
 import { platformDb } from "@/server/db/platform";
 import { posts, postImages } from "@/server/db/platform-schema";
-import { ensureProfile, getSession, queryFeed } from "@/server/community";
+import { ensureProfile, getSession, notifyMentions, queryFeed } from "@/server/community";
 import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
 import { createPostSchema } from "@/features/community/schemas";
@@ -17,6 +17,7 @@ export async function GET(req: Request) {
       cursor: url.searchParams.get("cursor"),
       tag: url.searchParams.get("tag"),
       search: url.searchParams.get("q"),
+      scope: url.searchParams.get("scope") as "all" | "following" | "saved" | null,
     },
     session?.user.id ?? null
   );
@@ -29,7 +30,8 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: "Sign in to post" }, { status: 401 });
 
   const { allowed } = await rateLimit(`post:${session.user.id}`, 5, 3600);
-  if (!allowed) return NextResponse.json({ error: "Posting too fast — try later" }, { status: 429 });
+  if (!allowed)
+    return NextResponse.json({ error: "Posting too fast — try later" }, { status: 429 });
 
   const parsed = createPostSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -52,9 +54,10 @@ export async function POST(req: Request) {
     createdAt: new Date().toISOString(),
   });
   if (input.images.length) {
-    await platformDb.insert(postImages).values(
-      input.images.map((data, position) => ({ id: newId(), postId: id, position, data }))
-    );
+    await platformDb
+      .insert(postImages)
+      .values(input.images.map((data, position) => ({ id: newId(), postId: id, position, data })));
   }
+  await notifyMentions(input.body, session.user.id, id);
   return NextResponse.json({ id }, { status: 201 });
 }

@@ -17,9 +17,7 @@ export const tradeCardSchema = z.object({
   openedAt: z.string().max(30),
 });
 
-const tagSchema = z
-  .string()
-  .regex(/^[a-z0-9-]{2,20}$/, "Tags: lowercase letters, numbers, dashes");
+const tagSchema = z.string().regex(/^[a-z0-9-]{2,20}$/, "Tags: lowercase letters, numbers, dashes");
 
 // ~280KB of base64 ≈ 200KB image. Client compresses to WebP first.
 const imageSchema = z
@@ -37,6 +35,7 @@ export const createPostSchema = z.object({
 
 export const createCommentSchema = z.object({
   body: z.string().min(1, "Empty comment").max(2000),
+  parentId: z.string().max(40).nullish(),
 });
 
 export const updateProfileSchema = z.object({
@@ -48,10 +47,18 @@ export const updateProfileSchema = z.object({
   bio: z.string().max(280).optional(),
 });
 
+export const REPORT_REASONS = [
+  { id: "spam", label: "Spam or promotion" },
+  { id: "harassment", label: "Harassment or abuse" },
+  { id: "advice", label: "Financial advice / tips" },
+  { id: "other", label: "Something else" },
+] as const;
+
 export const reportSchema = z.object({
   targetType: z.enum(["post", "comment"]),
   targetId: z.string().max(40),
-  reason: z.string().max(500).optional(),
+  reason: z.enum(["spam", "harassment", "advice", "other"]),
+  note: z.string().max(500).optional(),
 });
 
 export type CreatePostInput = z.infer<typeof createPostSchema>;

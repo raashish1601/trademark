@@ -12,12 +12,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Composer, Feed, SUGGESTED_TAGS, useMyProfile } from "@/features/community";
-import { useTrendingTags, type FeedSort } from "@/features/community/api";
+import { useTrendingTags, type FeedScope, type FeedSort } from "@/features/community/api";
 
 function CommunityHome() {
   const router = useRouter();
   const tag = useSearchParams().get("tag");
-  const [sort, setSort] = React.useState<FeedSort>("latest");
+  const [view, setView] = React.useState<{ sort: FeedSort; scope: FeedScope }>({
+    sort: "latest",
+    scope: "all",
+  });
   const [composeOpen, setComposeOpen] = React.useState(false);
   const [searchInput, setSearchInput] = React.useState("");
   const [search, setSearch] = React.useState<string | null>(null);
@@ -29,10 +32,14 @@ function CommunityHome() {
       ? trending.tags.map((t) => ({ tag: t.tag, count: t.count }))
       : SUGGESTED_TAGS.map((t) => ({ tag: t, count: 0 }));
 
-  const tabs: { id: FeedSort; label: string }[] = [
-    { id: "latest", label: "Latest" },
-    { id: "top", label: "Top this week" },
+  const tabs: { id: string; label: string; sort: FeedSort; scope: FeedScope }[] = [
+    { id: "latest", label: "Latest", sort: "latest", scope: "all" },
+    { id: "top", label: "Top this week", sort: "top", scope: "all" },
+    { id: "following", label: "Following", sort: "latest", scope: "following" },
+    { id: "saved", label: "Saved", sort: "latest", scope: "saved" },
   ];
+  const activeTab =
+    tabs.find((t) => t.sort === view.sort && t.scope === view.scope)?.id ?? "latest";
 
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 py-6 lg:grid-cols-[190px_minmax(0,1fr)_250px]">
@@ -43,11 +50,11 @@ function CommunityHome() {
             {tabs.map((t) => (
               <button
                 key={t.id}
-                onClick={() => setSort(t.id)}
-                aria-pressed={sort === t.id}
+                onClick={() => setView({ sort: t.sort, scope: t.scope })}
+                aria-pressed={activeTab === t.id}
                 className={cn(
                   "block w-full rounded-lg px-3 py-2 text-left text-sm transition-colors",
-                  sort === t.id
+                  activeTab === t.id
                     ? "bg-accent/12 font-medium text-accent"
                     : "text-muted hover:bg-surface-2 hover:text-foreground"
                 )}
@@ -124,15 +131,15 @@ function CommunityHome() {
             </button>
           )}
         </form>
-        <div className="mb-4 flex items-center gap-2 lg:hidden">
+        <div className="mb-4 flex items-center gap-1 overflow-x-auto lg:hidden">
           {tabs.map((t) => (
             <button
               key={t.id}
-              onClick={() => setSort(t.id)}
-              aria-pressed={sort === t.id}
+              onClick={() => setView({ sort: t.sort, scope: t.scope })}
+              aria-pressed={activeTab === t.id}
               className={cn(
-                "rounded-lg px-3 py-1.5 text-sm",
-                sort === t.id ? "bg-accent/12 font-medium text-accent" : "text-muted"
+                "whitespace-nowrap rounded-lg px-3 py-1.5 text-sm",
+                activeTab === t.id ? "bg-accent/12 font-medium text-accent" : "text-muted"
               )}
             >
               {t.label}
@@ -152,7 +159,7 @@ function CommunityHome() {
             </button>
           </div>
         )}
-        <Feed sort={sort} tag={tag} search={search} />
+        <Feed sort={view.sort} tag={tag} search={search} scope={view.scope} />
       </section>
 
       {/* ── Right rail ── */}
