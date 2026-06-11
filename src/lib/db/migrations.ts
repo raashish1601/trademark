@@ -124,6 +124,18 @@ const MIGRATIONS: { version: number; statements: string[] }[] = [
       `CREATE INDEX IF NOT EXISTS idx_attachments_trade ON attachments (trade_id)`,
     ],
   },
+  {
+    version: 2,
+    statements: [
+      // Explicit "no trades today" marks — they keep the journaling streak alive
+      // on days the user deliberately sat out (discipline counts as activity).
+      `CREATE TABLE IF NOT EXISTS no_trade_days (
+        date TEXT PRIMARY KEY,
+        note TEXT,
+        created_at TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]!.version;
@@ -141,6 +153,7 @@ export const JOURNAL_TABLES = [
   "rule_checks",
   "attachments",
   "settings",
+  "no_trade_days",
 ] as const;
 
 export async function runMigrations(db: DbClient): Promise<void> {
