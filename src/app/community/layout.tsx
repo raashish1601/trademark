@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CandlestickChart, Github, NotebookPen } from "lucide-react";
+import { Github, NotebookPen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Logo } from "@/components/shared/logo";
 import { QueryProvider } from "@/providers/query-provider";
 import { siteConfig } from "@/config/site";
 
@@ -19,10 +20,7 @@ export default function CommunityLayout({ children }: { children: React.ReactNod
       <div className="flex min-h-dvh flex-col">
         <header className="sticky top-0 z-40 border-b bg-bg/85 backdrop-blur">
           <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-4 px-4">
-            <Link href="/" className="flex items-center gap-2 font-semibold">
-              <CandlestickChart className="h-5 w-5 text-accent" aria-hidden />
-              Trade<span className="text-accent">Mark</span>
-            </Link>
+            <Logo />
             <span className="rounded-full border px-2.5 py-0.5 text-xs text-muted">Community</span>
             <div className="ml-auto flex items-center gap-1.5">
               <ThemeToggle />

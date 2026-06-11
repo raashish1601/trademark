@@ -16,6 +16,7 @@ export async function GET(req: Request) {
       sort: url.searchParams.get("sort") === "top" ? "top" : "latest",
       cursor: url.searchParams.get("cursor"),
       tag: url.searchParams.get("tag"),
+      search: url.searchParams.get("q"),
     },
     session?.user.id ?? null
   );

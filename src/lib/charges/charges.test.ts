@@ -16,16 +16,20 @@ describe("computeGrossPnl", () => {
   });
 });
 
-describe("computeCharges (options)", () => {
+describe("computeCharges (options) — Budget 2026 rates", () => {
   const trade = { segment: "OPT" as const, qty: 75, entryPrice: 100, exitPrice: 120, direction: "long" as const };
   const breakdown = computeCharges(zerodha, trade);
 
   it("charges flat ₹20 brokerage per order (2 orders)", () => {
     expect(breakdown.brokerage).toBe(40);
   });
-  it("applies STT only on the sell-side premium (0.1%)", () => {
-    // sell turnover = 120 * 75 = 9000 → 0.1% = 9
-    expect(breakdown.stt).toBeCloseTo(9, 2);
+  it("applies STT only on the sell-side premium (0.15%)", () => {
+    // sell turnover = 120 * 75 = 9000 → 0.15% = 13.5
+    expect(breakdown.stt).toBeCloseTo(13.5, 2);
+  });
+  it("NSE transaction charge 0.03553% on premium turnover", () => {
+    // total premium turnover = 7500 + 9000 = 16500 → 0.03553% = 5.86
+    expect(breakdown.exchange).toBeCloseTo(5.86, 2);
   });
   it("applies stamp duty only on the buy side", () => {
     // buy turnover = 100 * 75 = 7500 → 0.003% = 0.23
@@ -38,11 +42,36 @@ describe("computeCharges (options)", () => {
   });
 });
 
+describe("computeCharges (futures) — Budget 2026 rates", () => {
+  it("applies 0.05% STT on the sell side", () => {
+    const b = computeCharges(zerodha, { segment: "FUT", qty: 75, entryPrice: 24000, exitPrice: 24100, direction: "long" });
+    // sell turnover = 24100 * 75 = 18,07,500 → 0.05% = 903.75
+    expect(b.stt).toBeCloseTo(903.75, 1);
+  });
+});
+
 describe("computeCharges (equity intraday)", () => {
   it("uses percentage brokerage cap when lower than flat", () => {
     // tiny turnover → 0.03% beats ₹20 flat
     const b = computeCharges(zerodha, { segment: "EQ", qty: 1, entryPrice: 100, exitPrice: 101, direction: "long" });
     expect(b.brokerage).toBeLessThan(40);
+  });
+  it("applies 0.025% STT on the sell side", () => {
+    const b = computeCharges(zerodha, { segment: "EQ", qty: 100, entryPrice: 500, exitPrice: 510, direction: "long" });
+    // sell turnover 51,000 → 0.025% = 12.75
+    expect(b.stt).toBeCloseTo(12.75, 2);
+  });
+});
+
+describe("per-broker brokerage differences", () => {
+  it("Upstox futures cap (0.05%) differs from equity cap (0.1%)", () => {
+    const upstox = getChargeProfile("upstox");
+    const small = { qty: 1, entryPrice: 1000, exitPrice: 1000, direction: "long" as const };
+    const eq = computeCharges(upstox, { segment: "EQ", ...small });
+    const fut = computeCharges(upstox, { segment: "FUT", ...small });
+    // per-order turnover 1000 → eq: 1000*0.1% = 1 ×2; fut: 1000*0.05% = 0.5 ×2
+    expect(eq.brokerage).toBeCloseTo(2, 2);
+    expect(fut.brokerage).toBeCloseTo(1, 2);
   });
 });
 

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import { ArrowLeft, ArrowRight, CandlestickChart, Check, Cloud, Database, PlayCircle } from "lucide-react";
@@ -9,6 +8,7 @@ import { toast } from "sonner";
 import { useDbSession } from "@/providers/db-session-provider";
 import { useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/shared/logo";
 import { AuthForm } from "@/features/auth";
 import { ByodWizard } from "./byod-wizard";
 import { SetupForm } from "./setup-form";
@@ -142,10 +142,7 @@ export function OnboardingFlow() {
       {/* ── Brand panel (desktop) ── */}
       <div className="relative hidden overflow-hidden border-r lg:flex lg:flex-col lg:justify-between lg:p-10">
         <div className="hero-glow absolute inset-0" aria-hidden />
-        <Link href="/" className="relative flex w-fit items-center gap-2 font-semibold">
-          <CandlestickChart className="h-5 w-5 text-accent" />
-          Trade<span className="text-accent">Mark</span>
-        </Link>
+        <Logo className="relative" />
         <div className="relative">
           <h2 className="max-w-sm text-3xl font-bold leading-tight">
             Mark your trade, <span className="text-gradient">every day.</span>
@@ -173,10 +170,7 @@ export function OnboardingFlow() {
       {/* ── Flow panel ── */}
       <div className="flex flex-col justify-center p-5 sm:p-10">
         <div className="mx-auto w-full max-w-md">
-          <Link href="/" className="mb-8 flex w-fit items-center gap-2 font-semibold lg:hidden">
-            <CandlestickChart className="h-5 w-5 text-accent" />
-            Trade<span className="text-accent">Mark</span>
-          </Link>
+          <Logo className="mb-8 lg:hidden" />
 
           {step === "choose" && (
             <div className="space-y-3">

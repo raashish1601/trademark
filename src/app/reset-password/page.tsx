@@ -4,8 +4,9 @@ import * as React from "react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { CandlestickChart, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -39,10 +40,7 @@ function ResetForm() {
 
   return (
     <Card className="w-full max-w-sm p-6">
-      <div className="flex items-center gap-2 font-semibold">
-        <CandlestickChart className="h-5 w-5 text-accent" />
-        Trade<span className="text-accent">Mark</span>
-      </div>
+      <Logo />
       {done ? (
         <div className="mt-4 space-y-3">
           <p className="text-sm">✅ Password updated. You can sign in with it now.</p>

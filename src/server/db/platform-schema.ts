@@ -132,6 +132,25 @@ export const blogSubmissions = sqliteTable("blog_submissions", {
   reviewedAt: text("reviewed_at"),
 });
 
+/** User-submitted product feedback (bug reports, ideas). */
+export const feedback = sqliteTable("feedback", {
+  id: text("id").primaryKey(),
+  userId: text("user_id"), // nullable — anonymous feedback allowed
+  email: text("email"),
+  category: text("category").notNull().default("idea"), // bug | idea | other
+  message: text("message").notNull(),
+  path: text("path"),
+  createdAt: text("created_at").notNull(),
+});
+
+/** First-party page-view events for the admin analytics dashboard. */
+export const pageEvents = sqliteTable("page_events", {
+  id: text("id").primaryKey(),
+  path: text("path").notNull(),
+  userId: text("user_id"), // signed-in users only; anonymous views have null
+  createdAt: text("created_at").notNull(),
+});
+
 /** One row per user → which Turso DB holds their journal, and which mode they're in. */
 export const userDatabases = sqliteTable("user_databases", {
   userId: text("user_id").primaryKey(),

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { PwaRegister } from "@/components/pwa-register";
+import { AnalyticsTracker } from "@/components/analytics-tracker";
 import { siteConfig } from "@/config/site";
 import "@/styles/globals.css";
 
@@ -56,6 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${sans.variable} ${mono.variable} font-sans antialiased`}>
         <ThemeProvider>
           <PwaRegister />
+          <AnalyticsTracker />
           {children}
           <Toaster position="top-center" toastOptions={{ style: { background: "var(--surface-2)", color: "var(--text)", border: "1px solid var(--border)" } }} />
         </ThemeProvider>

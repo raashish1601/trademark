@@ -3,15 +3,25 @@ import {
   BookOpenText,
   CalendarDays,
   FileText,
+  FlaskConical,
   Layers,
   LayoutDashboard,
   NotebookPen,
   Settings,
   ShieldCheck,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 
-export const NAV_ITEMS = [
+export interface NavItem {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  /** Opens in a new tab (e.g. Community — a separate surface from the journal). */
+  newTab?: boolean;
+}
+
+export const NAV_ITEMS: NavItem[] = [
   { href: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/app/trades", label: "Trades", icon: BookOpenText },
   { href: "/app/journal", label: "Journal", icon: NotebookPen },
@@ -20,14 +30,14 @@ export const NAV_ITEMS = [
   { href: "/app/rules", label: "Rules & Mistakes", icon: ShieldCheck },
   { href: "/app/playbooks", label: "Playbooks", icon: Layers },
   { href: "/app/reports", label: "Reports", icon: FileText },
-  { href: "/community", label: "Community", icon: Users },
+  { href: "/app/backtesting", label: "Backtesting", icon: FlaskConical },
+  { href: "/community", label: "Community", icon: Users, newTab: true },
   { href: "/app/settings", label: "Settings", icon: Settings },
-] as const;
+];
 
-/** Bottom tab bar on mobile: 4 primary destinations (+ floating quick-add). */
-export const MOBILE_TABS = [
+/** Bottom tab bar on mobile: primary destinations (+ centered quick-add FAB). */
+export const MOBILE_TABS: NavItem[] = [
   { href: "/app/dashboard", label: "Home", icon: LayoutDashboard },
   { href: "/app/trades", label: "Trades", icon: BookOpenText },
   { href: "/app/journal", label: "Journal", icon: NotebookPen },
-  { href: "/app/analytics", label: "Stats", icon: BarChart3 },
-] as const;
+];

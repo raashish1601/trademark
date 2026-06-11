@@ -5,10 +5,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RichContent } from "@/components/ui/rich-editor";
 import { timeAgo } from "@/lib/utils";
+import { AnalyticsTab } from "./analytics-tab";
+import { FeedbackTab } from "./feedback-tab";
 
 interface Submission {
   id: string;
@@ -21,7 +23,35 @@ interface Submission {
   authorHandle: string | null;
 }
 
+/** Top-level admin: Submissions | Feedback | Analytics. */
 export function AdminPanel() {
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-xl font-bold">Admin</h1>
+        <p className="mt-1 text-sm text-muted">Blog review, user feedback, and platform analytics.</p>
+      </div>
+      <Tabs defaultValue="submissions">
+        <TabsList>
+          <TabsTrigger value="submissions">Blog submissions</TabsTrigger>
+          <TabsTrigger value="feedback">Feedback</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        </TabsList>
+        <TabsContent value="submissions">
+          <SubmissionsTab />
+        </TabsContent>
+        <TabsContent value="feedback">
+          <FeedbackTab />
+        </TabsContent>
+        <TabsContent value="analytics">
+          <AnalyticsTab />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function SubmissionsTab() {
   const [status, setStatus] = React.useState("pending");
   const qc = useQueryClient();
 
@@ -55,11 +85,6 @@ export function AdminPanel() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold">Blog submissions</h1>
-        <p className="mt-1 text-sm text-muted">Review community posts before they go live.</p>
-      </div>
-
       <Tabs value={status} onValueChange={setStatus}>
         <TabsList>
           <TabsTrigger value="pending">Pending</TabsTrigger>

@@ -4,22 +4,30 @@ import * as React from "react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { PenSquare, X } from "lucide-react";
+import { PenSquare, Search, X } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Composer, Feed, SUGGESTED_TAGS, useMyProfile } from "@/features/community";
-import type { FeedSort } from "@/features/community/api";
+import { useTrendingTags, type FeedSort } from "@/features/community/api";
 
 function CommunityHome() {
   const router = useRouter();
   const tag = useSearchParams().get("tag");
   const [sort, setSort] = React.useState<FeedSort>("latest");
   const [composeOpen, setComposeOpen] = React.useState(false);
+  const [searchInput, setSearchInput] = React.useState("");
+  const [search, setSearch] = React.useState<string | null>(null);
   const { data: session } = useSession();
   const { data: me } = useMyProfile(Boolean(session));
+  const { data: trending } = useTrendingTags();
+  const topics =
+    trending?.tags && trending.tags.length > 0
+      ? trending.tags.map((t) => ({ tag: t.tag, count: t.count }))
+      : SUGGESTED_TAGS.map((t) => ({ tag: t, count: 0 }));
 
   const tabs: { id: FeedSort; label: string }[] = [
     { id: "latest", label: "Latest" },
@@ -55,18 +63,19 @@ function CommunityHome() {
             )}
           </nav>
           <div>
-            <p className="micro-label mb-2 px-3">Topics</p>
+            <p className="micro-label mb-2 px-3">{trending?.tags?.length ? "Trending topics" : "Topics"}</p>
             <div className="flex flex-wrap gap-1.5 px-3">
-              {SUGGESTED_TAGS.map((t) => (
+              {topics.map((t) => (
                 <Link
-                  key={t}
-                  href={tag === t ? "/community" : `/community?tag=${t}`}
+                  key={t.tag}
+                  href={tag === t.tag ? "/community" : `/community?tag=${t.tag}`}
                   className={cn(
                     "rounded-md border px-2 py-0.5 text-xs transition-colors",
-                    tag === t ? "border-accent bg-accent/15 text-accent" : "text-muted hover:text-foreground"
+                    tag === t.tag ? "border-accent bg-accent/15 text-accent" : "text-muted hover:text-foreground"
                   )}
                 >
-                  #{t}
+                  #{t.tag}
+                  {t.count > 0 && <span className="ml-1 opacity-60">{t.count}</span>}
                 </Link>
               ))}
             </div>
@@ -76,6 +85,39 @@ function CommunityHome() {
 
       {/* ── Feed ── */}
       <section aria-label="Community feed" className="min-w-0">
+        <form
+          className="relative mb-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setSearch(searchInput.trim() || null);
+          }}
+          role="search"
+        >
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" aria-hidden />
+          <Input
+            value={searchInput}
+            onChange={(e) => {
+              setSearchInput(e.target.value);
+              if (e.target.value === "") setSearch(null);
+            }}
+            placeholder="Search posts…"
+            className="pl-9"
+            aria-label="Search posts"
+          />
+          {search && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              className="absolute right-3 top-2.5 text-muted hover:text-foreground"
+              onClick={() => {
+                setSearch(null);
+                setSearchInput("");
+              }}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </form>
         <div className="mb-4 flex items-center gap-2 lg:hidden">
           {tabs.map((t) => (
             <button
@@ -102,7 +144,7 @@ function CommunityHome() {
             </button>
           </div>
         )}
-        <Feed sort={sort} tag={tag} />
+        <Feed sort={sort} tag={tag} search={search} />
       </section>
 
       {/* ── Right rail ── */}

@@ -31,18 +31,26 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 export type FeedSort = "latest" | "top";
 
-export function useFeed(sort: FeedSort, tag: string | null) {
+export function useFeed(sort: FeedSort, tag: string | null, search: string | null = null) {
   return useInfiniteQuery({
-    queryKey: ["community-feed", sort, tag],
+    queryKey: ["community-feed", sort, tag, search],
     queryFn: ({ pageParam }) =>
       request<FeedResponse>(
         `/api/community/posts?sort=${sort}${tag ? `&tag=${encodeURIComponent(tag)}` : ""}${
-          pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ""
-        }`
+          search ? `&q=${encodeURIComponent(search)}` : ""
+        }${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ""}`
       ),
     initialPageParam: "",
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     staleTime: 15_000,
+  });
+}
+
+export function useTrendingTags() {
+  return useQuery({
+    queryKey: ["community-trending-tags"],
+    queryFn: () => request<{ tags: { tag: string; count: number }[] }>("/api/community/tags"),
+    staleTime: 5 * 60_000,
   });
 }
 

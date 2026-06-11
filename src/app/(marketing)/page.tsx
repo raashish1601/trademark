@@ -1,10 +1,13 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowRight, Cloud, Database, Github, HardDrive, Lock } from "lucide-react";
+import { ArrowRight, Github, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { siteConfig, jsonLdScript } from "@/config/site";
 import { HeroShowcase } from "./_components/hero-showcase";
 import { FeatureBento } from "./_components/feature-bento";
+import { ModeExplorer } from "./_components/mode-explorer";
+import { CommunitySpotlight } from "./_components/community-spotlight";
+import { ReturningUserRedirect } from "./_components/returning-user-redirect";
 import { Reveal } from "./_components/reveal";
 
 export const metadata: Metadata = {
@@ -32,16 +35,18 @@ const STEPS = [
   { n: "03", title: "Review & improve", text: "Saturday morning: your week, priced. Adherence, expectancy, and your costliest habit." },
 ];
 
-const MODES = [
-  { icon: Cloud, title: "Hosted", badge: "default", text: "Sign up in a minute. Your own isolated database — not a row in someone else's." },
-  { icon: Database, title: "Your database", badge: "private", text: "Connect a free Turso DB. Queries go browser → your DB. We never see a trade." },
-  { icon: HardDrive, title: "In-browser", badge: "instant", text: "A real SQLite database inside your browser — private, instant, no account needed." },
+const STATS = [
+  { value: "₹0", label: "cost, forever" },
+  { value: "<15s", label: "to log a trade" },
+  { value: "3", label: "storage modes" },
+  { value: "100%", label: "open source · MIT" },
 ];
 
 export default function LandingPage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }} />
+      <ReturningUserRedirect />
 
       {/* ── Hero ── */}
       <section className="relative overflow-hidden">
@@ -99,7 +104,19 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── How it works ── */}
+      {/* ── Stats band ── */}
+      <section className="border-t bg-surface/30" aria-label="At a glance">
+        <div className="mx-auto grid w-full max-w-5xl grid-cols-2 px-4 py-8 md:grid-cols-4 md:divide-x md:divide-border">
+          {STATS.map((s) => (
+            <div key={s.label} className="px-4 py-2 text-center">
+              <p className="font-money text-2xl font-bold text-foreground md:text-3xl">{s.value}</p>
+              <p className="micro-label mt-1">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── How it works — connected timeline ── */}
       <section className="border-t">
         <div className="mx-auto w-full max-w-5xl px-4 py-20">
           <Reveal>
@@ -107,16 +124,26 @@ export default function LandingPage() {
               The loop that builds <span className="text-gradient">discipline</span>
             </h2>
           </Reveal>
-          <div className="mt-12 grid gap-8 md:grid-cols-3">
-            {STEPS.map((s, i) => (
-              <Reveal key={s.n} delay={i * 0.1}>
-                <div className="relative">
-                  <span className="font-money text-5xl font-bold text-accent/20">{s.n}</span>
-                  <h3 className="mt-2 text-base font-semibold">{s.title}</h3>
-                  <p className="mt-1.5 text-sm leading-6 text-muted">{s.text}</p>
-                </div>
-              </Reveal>
-            ))}
+          <div className="relative mt-14">
+            <div
+              className="absolute left-0 right-0 top-5 hidden h-px bg-gradient-to-r from-transparent via-accent/40 to-transparent md:block"
+              aria-hidden
+            />
+            <ol className="grid gap-10 md:grid-cols-3">
+              {STEPS.map((s, i) => (
+                <Reveal key={s.n} delay={i * 0.12}>
+                  <li className="relative flex gap-4 md:flex-col md:items-center md:gap-0 md:text-center">
+                    <span className="z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-accent bg-bg font-money text-sm font-bold text-accent">
+                      {s.n}
+                    </span>
+                    <div>
+                      <h3 className="text-base font-semibold md:mt-4">{s.title}</h3>
+                      <p className="mt-1.5 max-w-xs text-sm leading-6 text-muted">{s.text}</p>
+                    </div>
+                  </li>
+                </Reveal>
+              ))}
+            </ol>
           </div>
         </div>
       </section>
@@ -136,40 +163,33 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Data ownership ── */}
+      {/* ── Community spotlight ── */}
       <section className="border-t">
+        <div className="mx-auto w-full max-w-5xl px-4 py-20">
+          <CommunitySpotlight />
+        </div>
+      </section>
+
+      {/* ── Data ownership — interactive explorer ── */}
+      <section className="border-t bg-surface/30">
         <div className="mx-auto w-full max-w-5xl px-4 py-20">
           <Reveal>
             <div className="mx-auto mb-4 flex w-fit items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs text-muted">
-              <Lock className="h-3.5 w-3.5 text-accent" /> Privacy is the product
+              <Lock className="h-3.5 w-3.5 text-accent" aria-hidden /> Privacy is the product
             </div>
             <h2 className="text-center text-2xl font-bold md:text-4xl">Your data stays yours</h2>
             <p className="mx-auto mt-3 max-w-xl text-center text-sm text-muted">
-              Three ways to store your journal. Switch anytime, both directions — copied in your
-              browser and verified table-by-table before anything flips.
+              Pick where your journal lives. Explore each mode:
             </p>
           </Reveal>
-          <div className="mt-10 grid gap-4 md:grid-cols-3">
-            {MODES.map((m, i) => (
-              <Reveal key={m.title} delay={i * 0.08}>
-                <div className="h-full rounded-xl border bg-surface p-5 transition-colors hover:border-accent/50">
-                  <div className="flex items-center justify-between">
-                    <m.icon className="h-5 w-5 text-accent" />
-                    <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent">
-                      {m.badge}
-                    </span>
-                  </div>
-                  <h3 className="mt-3 text-sm font-semibold">{m.title}</h3>
-                  <p className="mt-1.5 text-sm leading-6 text-muted">{m.text}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
+          <Reveal delay={0.1} className="mt-10">
+            <ModeExplorer />
+          </Reveal>
         </div>
       </section>
 
       {/* ── Keyboard-first ── */}
-      <section className="border-t bg-surface/30">
+      <section className="border-t">
         <div className="mx-auto w-full max-w-5xl px-4 py-20 text-center">
           <Reveal>
             <h2 className="text-2xl font-bold md:text-4xl">Built for speed</h2>

@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Cloud, Database, HardDrive, LogOut, Moon, Search } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Cloud, Database, HardDrive, LogOut, MessageSquarePlus, Moon, Search, ShieldCheck } from "lucide-react";
+import { FeedbackDialog } from "@/components/shared/feedback-dialog";
 import { NAV_ITEMS } from "@/config/nav";
 import { useFilterStore, PERIOD_LABELS, type PeriodPreset } from "@/stores/filter-store";
 import { useUiStore } from "@/stores/ui-store";
@@ -39,6 +42,18 @@ export function Topbar() {
   const mode = state.status === "ready" ? state.mode : null;
   const ModeIcon = mode ? MODE_META[mode].icon : Database;
 
+  // Surfaces the admin link for ADMIN_EMAILS accounts (hosted sessions only).
+  const { data: status } = useQuery({
+    queryKey: ["db-status"],
+    queryFn: async () => {
+      const res = await fetch("/api/db/status");
+      if (!res.ok) return null;
+      return (await res.json()) as { isAdmin?: boolean };
+    },
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
   const handleSignOut = async () => {
     if (mode === "hosted") await signOut();
     disconnect();
@@ -47,12 +62,19 @@ export function Topbar() {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-bg/85 backdrop-blur px-4">
-      <h1 className="text-sm font-semibold md:hidden">
+      <Link href="/app/dashboard" className="text-sm font-semibold md:hidden" aria-label="TradeMark dashboard">
         Trade<span className="text-accent">Mark</span>
-      </h1>
+      </Link>
       <h1 className="hidden md:block text-sm font-semibold">{title}</h1>
 
       <div className="ml-auto flex items-center gap-2">
+        <FeedbackDialog
+          trigger={
+            <Button variant="ghost" size="icon" aria-label="Send feedback">
+              <MessageSquarePlus className="h-4 w-4" />
+            </Button>
+          }
+        />
         <Button
           variant="outline"
           size="sm"
@@ -101,6 +123,14 @@ export function Topbar() {
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />
+            {status?.isAdmin && (
+              <DropdownMenuItem asChild>
+                <Link href="/admin">
+                  <ShieldCheck />
+                  Admin panel
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={handleSignOut}>
               <LogOut />
               {mode === "hosted" ? "Sign out" : "Disconnect"}

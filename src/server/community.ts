@@ -116,6 +116,7 @@ export interface FeedQuery {
   sort: "latest" | "top";
   cursor: string | null;
   tag: string | null;
+  search?: string | null;
   authorUserId?: string;
   limit?: number;
 }
@@ -125,6 +126,10 @@ export async function queryFeed(q: FeedQuery, viewerId: string | null) {
   const conditions = [];
   if (q.authorUserId) conditions.push(eq(posts.userId, q.authorUserId));
   if (q.tag) conditions.push(sql`${posts.tags} LIKE ${`%"${q.tag}"%`}`);
+  if (q.search) {
+    const like = `%${q.search.slice(0, 60)}%`;
+    conditions.push(sql`(${posts.body} LIKE ${like} OR ${posts.title} LIKE ${like})`);
+  }
 
   let rows: PostRow[];
   if (q.sort === "top") {

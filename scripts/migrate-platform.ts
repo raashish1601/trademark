@@ -129,6 +129,23 @@ const STATEMENTS = [
     reviewed_at TEXT
   )`,
   `CREATE INDEX IF NOT EXISTS idx_blog_status ON blog_submissions (status, created_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS feedback (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    email TEXT,
+    category TEXT NOT NULL DEFAULT 'idea',
+    message TEXT NOT NULL,
+    path TEXT,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS page_events (
+    id TEXT PRIMARY KEY,
+    path TEXT NOT NULL,
+    user_id TEXT,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_page_events_time ON page_events (created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_page_events_path ON page_events (path)`,
   `CREATE INDEX IF NOT EXISTS idx_posts_created ON posts (created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_posts_user ON posts (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_comments_post ON comments (post_id)`,

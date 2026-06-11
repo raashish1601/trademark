@@ -69,10 +69,17 @@ export function BottomNav() {
         <DropdownMenuContent align="end" side="top">
           {moreItems.map((i) => (
             <DropdownMenuItem key={i.href} asChild>
-              <Link href={i.href}>
-                <i.icon />
-                {i.label}
-              </Link>
+              {i.newTab ? (
+                <a href={i.href} target="_blank" rel="noopener">
+                  <i.icon />
+                  {i.label}
+                </a>
+              ) : (
+                <Link href={i.href}>
+                  <i.icon />
+                  {i.label}
+                </Link>
+              )}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>

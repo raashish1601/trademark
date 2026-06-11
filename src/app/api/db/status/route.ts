@@ -5,6 +5,7 @@ import { auth } from "@/server/auth";
 import { platformDb } from "@/server/db/platform";
 import { userDatabases } from "@/server/db/platform-schema";
 import { hasTursoApi } from "@/server/env";
+import { isAdmin } from "@/server/blog";
 
 export async function GET() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -22,6 +23,7 @@ export async function GET() {
     dbName: row?.dbName ?? null,
     storageMode: row?.storageMode ?? null,
     status: row?.status ?? null,
+    isAdmin: isAdmin(session.user.email),
     user: { id: session.user.id, email: session.user.email, name: session.user.name },
   });
 }

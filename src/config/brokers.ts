@@ -1,15 +1,23 @@
 /**
- * Indian broker charge profiles — DATA, not code. Rates change with budgets/circulars;
- * update here (or per-account overrides in Settings) without touching the engine.
- * Percentages are fractions (0.001 = 0.1%). Rates indicative as of FY 2025-26 — verify.
+ * Indian broker charge profiles — DATA, not code. Update here (or per-account
+ * overrides in Settings) without touching the engine.
+ *
+ * Statutory rates verified June 2026 against zerodha.com/charges (kept current)
+ * and the Budget 2026 STT revision (effective 1 Apr 2026):
+ *   STT: options 0.15% sell-side premium · futures 0.05% sell · eq intraday 0.025% sell
+ *   NSE txn: options 0.03553% premium · futures 0.00183% · equity 0.00307%
+ *   SEBI ₹10/crore · GST 18% on (brokerage + txn + SEBI) · stamp (buy): opt/eq 0.003%, fut 0.002%
+ * Percentages are fractions (0.0015 = 0.15%).
  */
 export interface ChargeProfile {
   id: string;
   label: string;
-  /** Flat brokerage per executed order (intraday/FnO discount brokers). */
+  /** Flat brokerage per executed order (always applies to options). */
   brokeragePerOrder: number;
-  /** Max brokerage as % of turnover per order (e.g. 0.0003 = 0.03% for Zerodha intraday). */
-  brokerageMaxPct: number;
+  /** Equity intraday: % of turnover per order, capped at the flat fee (0 = flat only). */
+  brokerageEqMaxPct: number;
+  /** Futures: % of turnover per order, capped at the flat fee (0 = flat only). */
+  brokerageFutMaxPct: number;
   /** STT: options — on premium, SELL side. */
   sttOptionSellPct: number;
   /** STT: futures — on turnover, SELL side. */
@@ -30,13 +38,14 @@ export interface ChargeProfile {
   stampEquityIntradayBuyPct: number;
 }
 
-const baseStatutory = {
-  sttOptionSellPct: 0.001, // 0.1% on premium (sell)
-  sttFutureSellPct: 0.0002, // 0.02% (sell)
+// Statutory charges are identical across brokers (set by govt/exchanges).
+const statutory = {
+  sttOptionSellPct: 0.0015, // 0.15% on premium (sell) — Budget 2026
+  sttFutureSellPct: 0.0005, // 0.05% (sell) — Budget 2026
   sttEquityIntradaySellPct: 0.00025, // 0.025% (sell)
-  exchangeOptionPct: 0.0003503, // NSE 0.03503% on premium
-  exchangeFuturePct: 0.0000173, // NSE 0.00173%
-  exchangeEquityPct: 0.0000297, // NSE 0.00297%
+  exchangeOptionPct: 0.0003553, // NSE 0.03553% on premium
+  exchangeFuturePct: 0.0000183, // NSE 0.00183%
+  exchangeEquityPct: 0.0000307, // NSE 0.00307%
   sebiPerCrore: 10,
   gstPct: 0.18,
   stampOptionBuyPct: 0.00003, // 0.003% (buy)
@@ -44,14 +53,33 @@ const baseStatutory = {
   stampEquityIntradayBuyPct: 0.00003, // 0.003% (buy)
 };
 
+// Brokerage differs per broker (from each broker's pricing page, June 2026).
 export const CHARGE_PROFILES: ChargeProfile[] = [
-  { id: "zerodha", label: "Zerodha", brokeragePerOrder: 20, brokerageMaxPct: 0.0003, ...baseStatutory },
-  { id: "upstox", label: "Upstox", brokeragePerOrder: 20, brokerageMaxPct: 0.0005, ...baseStatutory },
-  { id: "angelone", label: "Angel One", brokeragePerOrder: 20, brokerageMaxPct: 0.0003, ...baseStatutory },
-  { id: "dhan", label: "Dhan", brokeragePerOrder: 20, brokerageMaxPct: 0.0003, ...baseStatutory },
-  { id: "fyers", label: "Fyers", brokeragePerOrder: 20, brokerageMaxPct: 0.0003, ...baseStatutory },
-  { id: "groww", label: "Groww", brokeragePerOrder: 20, brokerageMaxPct: 0.0005, ...baseStatutory },
-  { id: "zero", label: "No charges (manual)", brokeragePerOrder: 0, brokerageMaxPct: 0, ...baseStatutory, sttOptionSellPct: 0, sttFutureSellPct: 0, sttEquityIntradaySellPct: 0, exchangeOptionPct: 0, exchangeFuturePct: 0, exchangeEquityPct: 0, sebiPerCrore: 0, gstPct: 0, stampOptionBuyPct: 0, stampFutureBuyPct: 0, stampEquityIntradayBuyPct: 0 },
+  { id: "zerodha", label: "Zerodha", brokeragePerOrder: 20, brokerageEqMaxPct: 0.0003, brokerageFutMaxPct: 0.0003, ...statutory },
+  { id: "upstox", label: "Upstox", brokeragePerOrder: 20, brokerageEqMaxPct: 0.001, brokerageFutMaxPct: 0.0005, ...statutory },
+  { id: "angelone", label: "Angel One", brokeragePerOrder: 20, brokerageEqMaxPct: 0.0025, brokerageFutMaxPct: 0.0025, ...statutory },
+  { id: "dhan", label: "Dhan", brokeragePerOrder: 20, brokerageEqMaxPct: 0.0003, brokerageFutMaxPct: 0.0003, ...statutory },
+  { id: "fyers", label: "Fyers", brokeragePerOrder: 20, brokerageEqMaxPct: 0.0003, brokerageFutMaxPct: 0.0003, ...statutory },
+  { id: "groww", label: "Groww", brokeragePerOrder: 20, brokerageEqMaxPct: 0.001, brokerageFutMaxPct: 0.001, ...statutory },
+  {
+    id: "zero",
+    label: "No charges (manual)",
+    brokeragePerOrder: 0,
+    brokerageEqMaxPct: 0,
+    brokerageFutMaxPct: 0,
+    ...statutory,
+    sttOptionSellPct: 0,
+    sttFutureSellPct: 0,
+    sttEquityIntradaySellPct: 0,
+    exchangeOptionPct: 0,
+    exchangeFuturePct: 0,
+    exchangeEquityPct: 0,
+    sebiPerCrore: 0,
+    gstPct: 0,
+    stampOptionBuyPct: 0,
+    stampFutureBuyPct: 0,
+    stampEquityIntradayBuyPct: 0,
+  },
 ];
 
 export function getChargeProfile(id: string): ChargeProfile {

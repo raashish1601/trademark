@@ -2,9 +2,9 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CandlestickChart } from "lucide-react";
 import { auth } from "@/server/auth";
 import { isAdmin } from "@/server/blog";
+import { Logo } from "@/components/shared/logo";
 import { QueryProvider } from "@/providers/query-provider";
 import { AdminPanel } from "./admin-panel";
 
@@ -29,10 +29,7 @@ export default async function AdminPage() {
     <div className="min-h-dvh">
       <header className="sticky top-0 z-40 border-b bg-bg/85 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-4xl items-center gap-2 px-4">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
-            <CandlestickChart className="h-5 w-5 text-accent" aria-hidden />
-            Trade<span className="text-accent">Mark</span>
-          </Link>
+          <Logo />
           <span className="rounded-full border px-2.5 py-0.5 text-xs text-muted">Admin</span>
           <span className="ml-auto text-xs text-muted">{session.user.email}</span>
         </div>

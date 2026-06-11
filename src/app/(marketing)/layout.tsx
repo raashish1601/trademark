@@ -2,6 +2,8 @@ import Link from "next/link";
 import { CandlestickChart, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Logo } from "@/components/shared/logo";
+import { FeedbackDialog } from "@/components/shared/feedback-dialog";
 import { siteConfig } from "@/config/site";
 
 const NAV = [
@@ -17,10 +19,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-40 border-b bg-bg/85 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-6 px-4">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
-            <CandlestickChart className="h-5 w-5 text-accent" />
-            Trade<span className="text-accent">Mark</span>
-          </Link>
+          <Logo />
           <nav className="hidden gap-5 text-sm text-muted md:flex">
             {NAV.map((n) => (
               <Link key={n.href} href={n.href} className="hover:text-foreground transition-colors">
@@ -36,7 +35,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
               </a>
             </Button>
             <Button asChild size="sm">
-              <Link href="/app/dashboard">Open app</Link>
+              <Link href="/app/onboarding">Sign in</Link>
             </Button>
           </div>
         </div>
@@ -56,6 +55,9 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             ))}
             <Link href="/changelog" className="hover:text-foreground">Changelog</Link>
             <a href={siteConfig.github} className="hover:text-foreground" target="_blank" rel="noreferrer">GitHub</a>
+            <FeedbackDialog
+              trigger={<button className="hover:text-foreground cursor-pointer">Feedback</button>}
+            />
           </nav>
         </div>
       </footer>

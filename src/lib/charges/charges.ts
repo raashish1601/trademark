@@ -37,11 +37,13 @@ export function computeCharges(profile: ChargeProfile, t: TradeForCharges): Char
   const totalTurnover = buyTurnover + sellTurnover;
   const orders = t.orders ?? 2;
 
-  // Options: flat per order. Equity/futures: % of turnover capped at the flat rate.
+  // Options: flat per order. Equity/futures: % of turnover capped at the flat rate
+  // (rates differ per broker — e.g. Upstox charges 0.1% eq vs 0.05% futures).
   const perOrderTurnover = totalTurnover / orders;
+  const maxPct = t.segment === "EQ" ? profile.brokerageEqMaxPct : t.segment === "FUT" ? profile.brokerageFutMaxPct : 0;
   const brokerage =
-    t.segment !== "OPT" && profile.brokerageMaxPct > 0
-      ? Math.min(profile.brokeragePerOrder, perOrderTurnover * profile.brokerageMaxPct) * orders
+    maxPct > 0
+      ? Math.min(profile.brokeragePerOrder, perOrderTurnover * maxPct) * orders
       : profile.brokeragePerOrder * orders;
 
   let stt = 0;
