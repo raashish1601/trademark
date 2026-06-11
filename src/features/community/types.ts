@@ -33,6 +33,7 @@ export interface PostView {
   commentCount: number;
   createdAt: string;
   likedByMe: boolean;
+  bookmarkedByMe: boolean;
   mine: boolean;
   author: AuthorView;
 }
@@ -40,6 +41,9 @@ export interface PostView {
 export interface CommentView {
   id: string;
   body: string;
+  parentId: string | null;
+  likeCount: number;
+  likedByMe: boolean;
   createdAt: string;
   mine: boolean;
   author: AuthorView;
@@ -49,8 +53,22 @@ export interface ProfileView {
   username: string;
   displayName: string;
   bio: string | null;
+  website: string | null;
   createdAt: string;
   postCount: number;
+  followerCount: number;
+  followingCount: number;
+  followedByMe: boolean;
+  blockedByMe: boolean;
+}
+
+export interface NotificationView {
+  id: string;
+  type: "like" | "comment" | "reply" | "follow" | "mention";
+  actor: AuthorView;
+  postId: string | null;
+  read: boolean;
+  createdAt: string;
 }
 
 export interface FeedResponse {

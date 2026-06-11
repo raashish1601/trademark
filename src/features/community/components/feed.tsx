@@ -4,18 +4,34 @@ import * as React from "react";
 import { MessagesSquare } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
-import { useFeed, type FeedSort } from "../api";
+import { useFeed, type FeedScope, type FeedSort } from "../api";
 import { PostCard } from "./post-card";
 
-export function Feed({ sort, tag, search = null }: { sort: FeedSort; tag: string | null; search?: string | null }) {
-  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useFeed(sort, tag, search);
+export function Feed({
+  sort,
+  tag,
+  search = null,
+  scope = "all",
+}: {
+  sort: FeedSort;
+  tag: string | null;
+  search?: string | null;
+  scope?: FeedScope;
+}) {
+  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useFeed(
+    sort,
+    tag,
+    search,
+    scope
+  );
   const sentinelRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
-      (entries) => entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage && void fetchNextPage(),
+      (entries) =>
+        entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage && void fetchNextPage(),
       { rootMargin: "400px" }
     );
     observer.observe(el);
@@ -32,18 +48,38 @@ export function Feed({ sort, tag, search = null }: { sort: FeedSort; tag: string
     );
   }
   if (isError) {
-    return <p className="py-10 text-center text-sm text-loss">Could not load the feed — try refreshing.</p>;
+    return (
+      <p className="py-10 text-center text-sm text-loss">
+        Could not load the feed — try refreshing.
+      </p>
+    );
   }
 
   const posts = data?.pages.flatMap((p) => p.posts) ?? [];
   if (posts.length === 0) {
-    return (
-      <EmptyState
-        icon={MessagesSquare}
-        title={search ? `No results for “${search}”` : tag ? `Nothing under #${tag} yet` : "No posts yet"}
-        description={search ? "Try a different search." : "Be the first — share a trade idea, a lesson, or a question."}
-      />
-    );
+    const empty =
+      scope === "following"
+        ? {
+            title: "Your Following feed is empty",
+            desc: "Follow traders from their profiles to build your feed.",
+          }
+        : scope === "saved"
+          ? {
+              title: "No saved posts yet",
+              desc: "Tap the bookmark icon on any post to save it here.",
+            }
+          : search
+            ? { title: `No results for “${search}”`, desc: "Try a different search." }
+            : tag
+              ? {
+                  title: `Nothing under #${tag} yet`,
+                  desc: "Be the first — share a trade idea, a lesson, or a question.",
+                }
+              : {
+                  title: "No posts yet",
+                  desc: "Be the first — share a trade idea, a lesson, or a question.",
+                };
+    return <EmptyState icon={MessagesSquare} title={empty.title} description={empty.desc} />;
   }
 
   return (

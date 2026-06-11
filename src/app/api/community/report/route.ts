@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     reporterId: session.user.id,
     targetType: parsed.data.targetType,
     targetId: parsed.data.targetId,
-    reason: parsed.data.reason ?? null,
+    reason: `${parsed.data.reason}${parsed.data.note ? `: ${parsed.data.note}` : ""}`,
     createdAt: new Date().toISOString(),
   });
   return NextResponse.json({ reported: true }, { status: 201 });

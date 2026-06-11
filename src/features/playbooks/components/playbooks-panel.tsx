@@ -17,16 +17,23 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PnlText } from "@/components/shared/pnl-text";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export function PlaybooksPanel() {
   const { db } = useDb();
   const qc = useQueryClient();
+  const confirmDialog = useConfirm();
   const { data: playbooks = [] } = usePlaybooks();
   const { data: trades = [] } = useTrades({});
   const [editing, setEditing] = React.useState<PlaybookRow | "new" | null>(null);
 
   const save = useMutation({
-    mutationFn: async (input: { id?: string; name: string; description: string; criteria: string }) => {
+    mutationFn: async (input: {
+      id?: string;
+      name: string;
+      description: string;
+      criteria: string;
+    }) => {
       const ts = new Date().toISOString();
       if (input.id) {
         await db.execute(
@@ -59,7 +66,10 @@ export function PlaybooksPanel() {
 
   const closed = closedOnly(trades);
   const statsByPlaybook = new Map(
-    groupBy(closed.filter((t) => t.playbook_id), (t) => t.playbook_id ?? "").map((s) => [s.key, s])
+    groupBy(
+      closed.filter((t) => t.playbook_id),
+      (t) => t.playbook_id ?? ""
+    ).map((s) => [s.key, s])
   );
   const unassigned = closed.filter((t) => !t.playbook_id).length;
 
@@ -93,12 +103,22 @@ export function PlaybooksPanel() {
                     {p.description && <p className="mt-1 text-xs text-muted">{p.description}</p>}
                   </div>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => setEditing(p)}>Edit</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setEditing(p)}>
+                      Edit
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
                       className="text-muted hover:text-loss"
-                      onClick={() => confirm("Delete playbook? Trades keep their data.") && remove.mutate(p.id)}
+                      aria-label="Delete playbook"
+                      onClick={async () =>
+                        (await confirmDialog({
+                          title: "Delete playbook?",
+                          description: "Trades keep their data.",
+                          confirmLabel: "Delete",
+                          destructive: true,
+                        })) && remove.mutate(p.id)
+                      }
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -107,16 +127,30 @@ export function PlaybooksPanel() {
                 <CardContent>
                   {s ? (
                     <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div><div className="micro-label">Net P&L</div><PnlText value={s.netPnl} /></div>
-                      <div><div className="micro-label">Trades</div><span className="font-money">{s.trades}</span></div>
-                      <div><div className="micro-label">Win rate</div><span className="font-money">{formatPct(s.winRate, 0)}</span></div>
-                      <div><div className="micro-label">Expectancy</div><PnlText value={s.expectancy} /></div>
+                      <div>
+                        <div className="micro-label">Net P&L</div>
+                        <PnlText value={s.netPnl} />
+                      </div>
+                      <div>
+                        <div className="micro-label">Trades</div>
+                        <span className="font-money">{s.trades}</span>
+                      </div>
+                      <div>
+                        <div className="micro-label">Win rate</div>
+                        <span className="font-money">{formatPct(s.winRate, 0)}</span>
+                      </div>
+                      <div>
+                        <div className="micro-label">Expectancy</div>
+                        <PnlText value={s.expectancy} />
+                      </div>
                     </div>
                   ) : (
                     <p className="text-xs text-muted">No closed trades with this setup yet.</p>
                   )}
                   {p.criteria && (
-                    <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-surface-2 p-2 text-xs text-muted font-sans">{p.criteria}</pre>
+                    <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-surface-2 p-2 text-xs text-muted font-sans">
+                      {p.criteria}
+                    </pre>
                   )}
                 </CardContent>
               </Card>
@@ -145,11 +179,20 @@ export function PlaybooksPanel() {
           >
             <div className="space-y-1">
               <Label>Name</Label>
-              <Input name="name" required defaultValue={editing !== "new" ? editing?.name : ""} placeholder="Opening Range Breakout" />
+              <Input
+                name="name"
+                required
+                defaultValue={editing !== "new" ? editing?.name : ""}
+                placeholder="Opening Range Breakout"
+              />
             </div>
             <div className="space-y-1">
               <Label>Description</Label>
-              <Input name="description" defaultValue={editing !== "new" ? (editing?.description ?? "") : ""} placeholder="One-line summary" />
+              <Input
+                name="description"
+                defaultValue={editing !== "new" ? (editing?.description ?? "") : ""}
+                placeholder="One-line summary"
+              />
             </div>
             <div className="space-y-1">
               <Label>Criteria checklist</Label>
@@ -160,7 +203,9 @@ export function PlaybooksPanel() {
                 placeholder={"- 15m range defined\n- Breakout with volume\n- Entry on retest"}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={save.isPending}>Save playbook</Button>
+            <Button type="submit" className="w-full" disabled={save.isPending}>
+              Save playbook
+            </Button>
           </form>
         </DialogContent>
       </Dialog>

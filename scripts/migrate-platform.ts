@@ -146,6 +146,43 @@ const STATEMENTS = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_page_events_time ON page_events (created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_page_events_path ON page_events (path)`,
+  // ── Community v2: threading, comment likes, bookmarks, follows, notifications ──
+  `CREATE TABLE IF NOT EXISTS comment_likes (
+    comment_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (comment_id, user_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS bookmarks (
+    user_id TEXT NOT NULL,
+    post_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, post_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS follows (
+    follower_id TEXT NOT NULL,
+    following_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (follower_id, following_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    actor_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    post_id TEXT,
+    comment_id TEXT,
+    read INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS blocks (
+    blocker_id TEXT NOT NULL,
+    blocked_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (blocker_id, blocked_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications (user_id, read, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_follows_following ON follows (following_id)`,
   `CREATE INDEX IF NOT EXISTS idx_posts_created ON posts (created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_posts_user ON posts (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_comments_post ON comments (post_id)`,
@@ -168,6 +205,21 @@ async function main() {
   for (const sql of STATEMENTS) {
     await client.execute(sql);
     console.log("OK:", sql.trim().slice(0, 60).replace(/\s+/g, " "), "…");
+  }
+
+  // Column additions to existing tables — best-effort (no-op when already applied).
+  const ALTERS = [
+    `ALTER TABLE comments ADD COLUMN parent_id TEXT`,
+    `ALTER TABLE comments ADD COLUMN like_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE profiles ADD COLUMN website TEXT`,
+  ];
+  for (const sql of ALTERS) {
+    try {
+      await client.execute(sql);
+      console.log("OK:", sql);
+    } catch {
+      console.log("skip (exists):", sql);
+    }
   }
   const tables = await client.execute(
     `SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`

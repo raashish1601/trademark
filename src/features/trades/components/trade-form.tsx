@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useForm, Controller, type Resolver } from "react-hook-form";
+import { useForm, useFieldArray, Controller, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -19,7 +21,7 @@ import { PnlText } from "@/components/shared/pnl-text";
 import { cn } from "@/lib/utils";
 import { tradeFormSchema, type TradeFormValues } from "../schemas";
 import { useAccounts, usePlaybooks, useSaveTrade } from "../queries";
-import { deriveTradeNumbers, nowLocalInput } from "../utils";
+import { aggregateLegs, deriveTradeNumbers, nowLocalInput } from "../utils";
 import { TagPicker } from "./tag-picker";
 
 /**
@@ -65,6 +67,8 @@ export function TradeForm({
     },
   });
   const { register, handleSubmit, watch, control, setValue, formState } = form;
+  const legsArray = useFieldArray({ control, name: "legs" });
+  const [legsMode, setLegsMode] = React.useState(Boolean(defaults?.legs?.length));
 
   // Default the account once accounts load.
   React.useEffect(() => {
@@ -81,6 +85,46 @@ export function TradeForm({
     const sub = watch((values) => onDraftChange(values as Partial<TradeFormValues>));
     return () => sub.unsubscribe();
   }, [watch, onDraftChange]);
+
+  // Legs mode: headline qty/avg-entry/avg-exit/times always mirror the legs.
+  const watchedLegs = watch("legs");
+  const direction = watch("direction");
+  React.useEffect(() => {
+    if (!legsMode || !watchedLegs?.length) return;
+    const a = aggregateLegs(watchedLegs, direction);
+    setValue("qty", a.qty);
+    setValue("avgEntry", a.avgEntry as number);
+    setValue("avgExit", a.avgExit);
+    if (a.openedAt) setValue("openedAt", a.openedAt);
+    setValue("closedAt", a.closedAt ?? undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(watchedLegs), direction, legsMode]);
+
+  const toggleLegsMode = (on: boolean) => {
+    setLegsMode(on);
+    if (on) {
+      // Seed legs from whatever is already typed in the simple fields.
+      const v = form.getValues();
+      const entrySide = v.direction === "long" ? ("buy" as const) : ("sell" as const);
+      const exitSide = v.direction === "long" ? ("sell" as const) : ("buy" as const);
+      const seed = [
+        {
+          side: entrySide,
+          qty: v.qty || ("" as unknown as number),
+          price: v.avgEntry || ("" as unknown as number),
+          time: v.openedAt,
+        },
+      ];
+      if (v.avgExit)
+        seed.push({ side: exitSide, qty: v.qty, price: v.avgExit, time: v.closedAt || v.openedAt });
+      setValue("legs", seed);
+    } else {
+      setValue("legs", undefined);
+    }
+  };
+
+  const legsSummary =
+    legsMode && watchedLegs?.length ? aggregateLegs(watchedLegs, direction) : null;
 
   const values = watch();
   const account = accounts.find((a) => a.id === values.accountId);
@@ -203,22 +247,123 @@ export function TradeForm({
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
-        <div className="space-y-1">
-          <Label>Qty</Label>
-          <Input type="number" placeholder="75" {...register("qty")} />
-          {err("qty") && <p className="text-xs text-loss">{err("qty")}</p>}
-        </div>
-        <div className="space-y-1">
-          <Label>Entry ₹</Label>
-          <Input type="number" step="any" placeholder="120.50" {...register("avgEntry")} />
-          {err("avgEntry") && <p className="text-xs text-loss">{err("avgEntry")}</p>}
-        </div>
-        <div className="space-y-1">
-          <Label>Exit ₹</Label>
-          <Input type="number" step="any" placeholder="blank = open" {...register("avgExit")} />
-        </div>
+      <div className="flex items-center justify-between">
+        <Label htmlFor="legs-mode" className="text-xs text-muted">
+          Multiple legs (scale in / out, partial exits)
+        </Label>
+        <Switch id="legs-mode" checked={legsMode} onCheckedChange={toggleLegsMode} />
       </div>
+
+      {legsMode ? (
+        <div className="space-y-2">
+          {legsArray.fields.map((field, i) => (
+            <div
+              key={field.id}
+              className="grid grid-cols-[5.5rem_1fr_1fr_1fr_2rem] items-end gap-1.5"
+            >
+              <div className="space-y-1">
+                {i === 0 && <Label className="text-[11px]">Side</Label>}
+                <Controller
+                  control={control}
+                  name={`legs.${i}.side`}
+                  render={({ field: f }) => (
+                    <Select value={f.value} onValueChange={f.onChange}>
+                      <SelectTrigger aria-label={`Leg ${i + 1} side`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="buy">Buy</SelectItem>
+                        <SelectItem value="sell">Sell</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+              <div className="space-y-1">
+                {i === 0 && <Label className="text-[11px]">Qty</Label>}
+                <Input
+                  type="number"
+                  aria-label={`Leg ${i + 1} qty`}
+                  {...register(`legs.${i}.qty`)}
+                />
+              </div>
+              <div className="space-y-1">
+                {i === 0 && <Label className="text-[11px]">Price ₹</Label>}
+                <Input
+                  type="number"
+                  step="any"
+                  aria-label={`Leg ${i + 1} price`}
+                  {...register(`legs.${i}.price`)}
+                />
+              </div>
+              <div className="space-y-1">
+                {i === 0 && <Label className="text-[11px]">Time</Label>}
+                <Input
+                  type="datetime-local"
+                  aria-label={`Leg ${i + 1} time`}
+                  {...register(`legs.${i}.time`)}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Remove leg ${i + 1}`}
+                className="text-muted hover:text-loss"
+                disabled={legsArray.fields.length <= 1}
+                onClick={() => legsArray.remove(i)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          <div className="flex items-center justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                legsArray.append({
+                  side: direction === "long" ? "sell" : "buy",
+                  qty: "" as unknown as number,
+                  price: "" as unknown as number,
+                  time: nowLocalInput(),
+                })
+              }
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden /> Add leg
+            </Button>
+            {legsSummary && legsSummary.qty > 0 && (
+              <p className="text-xs text-muted">
+                {legsSummary.qty} @ ₹{legsSummary.avgEntry}
+                {legsSummary.closed
+                  ? ` → ₹${legsSummary.avgExit} (closed)`
+                  : legsSummary.exitQty > 0
+                    ? ` · ${legsSummary.exitQty} exited — still open`
+                    : " · open"}
+              </p>
+            )}
+          </div>
+          {err("qty") && <p className="text-xs text-loss">Add at least one entry-side leg</p>}
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          <div className="space-y-1">
+            <Label>Qty</Label>
+            <Input type="number" placeholder="75" {...register("qty")} />
+            {err("qty") && <p className="text-xs text-loss">{err("qty")}</p>}
+          </div>
+          <div className="space-y-1">
+            <Label>Entry ₹</Label>
+            <Input type="number" step="any" placeholder="120.50" {...register("avgEntry")} />
+            {err("avgEntry") && <p className="text-xs text-loss">{err("avgEntry")}</p>}
+          </div>
+          <div className="space-y-1">
+            <Label>Exit ₹</Label>
+            <Input type="number" step="any" placeholder="blank = open" {...register("avgExit")} />
+          </div>
+        </div>
+      )}
 
       <div className="space-y-4">
         {/* Risk plan — SL first: it powers R-multiples and plan-vs-actual review. */}

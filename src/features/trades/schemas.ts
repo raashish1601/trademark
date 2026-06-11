@@ -6,6 +6,16 @@ const optionalNumber = (schema: z.ZodNumber) =>
     z.coerce.number().pipe(schema).optional()
   );
 
+/** One executed order. A trade can have many (scale-in / scale-out / partial exits). */
+export const legSchema = z.object({
+  side: z.enum(["buy", "sell"]),
+  qty: z.coerce.number().int("Whole number").positive("Qty"),
+  price: z.coerce.number().positive("Price"),
+  time: z.string().min(1, "Time"),
+});
+
+export type TradeLeg = z.infer<typeof legSchema>;
+
 export const tradeFormSchema = z
   .object({
     accountId: z.string().min(1, "Account required"),
@@ -28,6 +38,8 @@ export const tradeFormSchema = z
     notes: z.string().optional(),
     tagIds: z.array(z.string()),
     manualCharges: optionalNumber(z.number().min(0)),
+    /** When present, qty/avgEntry/avgExit/openedAt/closedAt are derived from these. */
+    legs: z.array(legSchema).optional(),
   })
   .refine((v) => v.segment !== "OPT" || (v.strike && v.optionType), {
     message: "Options need strike & CE/PE",

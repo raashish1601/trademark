@@ -3,7 +3,7 @@ import { eq, sql } from "drizzle-orm";
 import { newId } from "@/lib/id";
 import { platformDb } from "@/server/db/platform";
 import { comments, posts } from "@/server/db/platform-schema";
-import { ensureProfile, getSession } from "@/server/community";
+import { ensureProfile, getSession, notify, notifyMentions } from "@/server/community";
 import { isAllowedOrigin } from "@/server/origin-check";
 import { rateLimit } from "@/server/rate-limit";
 import { createCommentSchema } from "@/features/community/schemas";
@@ -25,16 +25,39 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     );
   }
 
-  const post = await platformDb.select({ id: posts.id }).from(posts).where(eq(posts.id, id)).get();
+  const post = await platformDb
+    .select({ id: posts.id, userId: posts.userId })
+    .from(posts)
+    .where(eq(posts.id, id))
+    .get();
   if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
   const profile = await ensureProfile(session.user.id, session.user.name);
 
+  // One-level threading: replying to a reply attaches to the top-level parent.
+  let parentId: string | null = null;
+  let parentAuthor: string | null = null;
+  if (parsed.data.parentId) {
+    const parent = await platformDb
+      .select({ id: comments.id, parentId: comments.parentId, userId: comments.userId })
+      .from(comments)
+      .where(eq(comments.id, parsed.data.parentId))
+      .get();
+    if (!parent || parent.parentId) {
+      parentId = parent?.parentId ?? null;
+    } else {
+      parentId = parent.id;
+    }
+    parentAuthor = parent?.userId ?? null;
+  }
+
+  const body = parsed.data.body.trim();
   const commentId = newId();
   await platformDb.insert(comments).values({
     id: commentId,
     postId: id,
     userId: session.user.id,
-    body: parsed.data.body.trim(),
+    body,
+    parentId,
     createdAt: new Date().toISOString(),
   });
   await platformDb
@@ -42,10 +65,33 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     .set({ commentCount: sql`${posts.commentCount} + 1` })
     .where(eq(posts.id, id));
 
+  // Notifications: post author (comment) or parent author (reply) + mentions.
+  if (parentAuthor) {
+    await notify({
+      userId: parentAuthor,
+      actorId: session.user.id,
+      type: "reply",
+      postId: id,
+      commentId,
+    });
+  } else {
+    await notify({
+      userId: post.userId,
+      actorId: session.user.id,
+      type: "comment",
+      postId: id,
+      commentId,
+    });
+  }
+  await notifyMentions(body, session.user.id, id);
+
   return NextResponse.json(
     {
       id: commentId,
-      body: parsed.data.body.trim(),
+      body,
+      parentId,
+      likeCount: 0,
+      likedByMe: false,
       createdAt: new Date().toISOString(),
       mine: true,
       author: { username: profile!.username, displayName: profile!.displayName },

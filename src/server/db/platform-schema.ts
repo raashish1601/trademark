@@ -63,8 +63,20 @@ export const profiles = sqliteTable("profiles", {
   username: text("username").notNull().unique(),
   displayName: text("display_name").notNull(),
   bio: text("bio"),
+  website: text("website"),
   createdAt: text("created_at").notNull(),
 });
+
+/** One-way blocks: the blocker stops seeing the blocked user's content. */
+export const blocks = sqliteTable(
+  "blocks",
+  {
+    blockerId: text("blocker_id").notNull(),
+    blockedId: text("blocked_id").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.blockerId, t.blockedId] })]
+);
 
 export const posts = sqliteTable("posts", {
   id: text("id").primaryKey(),
@@ -94,6 +106,50 @@ export const comments = sqliteTable("comments", {
     .notNull()
     .references(() => user.id, { onDelete: "cascade" }),
   body: text("body").notNull(),
+  parentId: text("parent_id"), // one-level threading (LinkedIn-style)
+  likeCount: integer("like_count").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+});
+
+export const commentLikes = sqliteTable(
+  "comment_likes",
+  {
+    commentId: text("comment_id").notNull(),
+    userId: text("user_id").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.commentId, t.userId] })]
+);
+
+export const bookmarks = sqliteTable(
+  "bookmarks",
+  {
+    userId: text("user_id").notNull(),
+    postId: text("post_id").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.postId] })]
+);
+
+export const follows = sqliteTable(
+  "follows",
+  {
+    followerId: text("follower_id").notNull(),
+    followingId: text("following_id").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.followerId, t.followingId] })]
+);
+
+/** In-app notifications: like | comment | reply | follow | mention. */
+export const notifications = sqliteTable("notifications", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(), // recipient
+  actorId: text("actor_id").notNull(),
+  type: text("type").notNull(),
+  postId: text("post_id"),
+  commentId: text("comment_id"),
+  read: integer("read").notNull().default(0),
   createdAt: text("created_at").notNull(),
 });
 

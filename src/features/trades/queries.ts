@@ -17,7 +17,7 @@ import type {
 import type { TradeFormValues } from "./schemas";
 import { deriveTradeNumbers, localInputToIso } from "./utils";
 
-const cast = <T,>(rows: Record<string, unknown>[]): T[] => rows as unknown as T[];
+const cast = <T>(rows: Record<string, unknown>[]): T[] => rows as unknown as T[];
 
 async function fetchTagsByTrade(db: DbClient): Promise<Map<string, Tag[]>> {
   const res = await db.execute(
@@ -122,7 +122,8 @@ export function useAccounts() {
   const { db } = useDb();
   return useQuery({
     queryKey: ["accounts"],
-    queryFn: async () => cast<AccountRow>((await db.execute(`SELECT * FROM accounts ORDER BY created_at`)).rows),
+    queryFn: async () =>
+      cast<AccountRow>((await db.execute(`SELECT * FROM accounts ORDER BY created_at`)).rows),
   });
 }
 
@@ -130,7 +131,8 @@ export function useTags() {
   const { db } = useDb();
   return useQuery({
     queryKey: ["tags"],
-    queryFn: async () => cast<Tag>((await db.execute(`SELECT * FROM tags ORDER BY kind, name`)).rows),
+    queryFn: async () =>
+      cast<Tag>((await db.execute(`SELECT * FROM tags ORDER BY kind, name`)).rows),
   });
 }
 
@@ -157,16 +159,38 @@ async function buildSaveStatements(
   const id = existingId ?? newId();
   const ts = new Date().toISOString();
   const openedIso = localInputToIso(values.openedAt);
-  const closedIso = values.avgExit != null ? localInputToIso(values.closedAt || values.openedAt) : null;
+  const closedIso =
+    values.avgExit != null ? localInputToIso(values.closedAt || values.openedAt) : null;
 
   const statements: DbStatement[] = [];
   const row: DbValue[] = [
-    id, values.accountId, values.symbol.trim().toUpperCase(), "NSE", values.segment,
-    values.expiry || null, values.strike ?? null, values.optionType ?? null,
-    values.direction, d.status, values.qty, values.avgEntry, values.avgExit ?? null,
-    values.plannedEntry ?? null, values.plannedSl ?? null, values.plannedTarget ?? null,
-    openedIso, closedIso, d.gross, d.charges, d.net, d.r,
-    values.playbookId || null, values.confidence ?? null, values.notes || null, ts, ts,
+    id,
+    values.accountId,
+    values.symbol.trim().toUpperCase(),
+    "NSE",
+    values.segment,
+    values.expiry || null,
+    values.strike ?? null,
+    values.optionType ?? null,
+    values.direction,
+    d.status,
+    values.qty,
+    values.avgEntry,
+    values.avgExit ?? null,
+    values.plannedEntry ?? null,
+    values.plannedSl ?? null,
+    values.plannedTarget ?? null,
+    openedIso,
+    closedIso,
+    d.gross,
+    d.charges,
+    d.net,
+    d.r,
+    values.playbookId || null,
+    values.confidence ?? null,
+    values.notes || null,
+    ts,
+    ts,
   ];
 
   if (existingId) {
@@ -181,15 +205,39 @@ async function buildSaveStatements(
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: row,
   });
-  statements.push({
-    sql: `INSERT INTO trade_fills (id, trade_id, side, qty, price, fill_time) VALUES (?, ?, ?, ?, ?, ?)`,
-    args: [newId(), id, values.direction === "long" ? "buy" : "sell", values.qty, values.avgEntry, openedIso],
-  });
-  if (values.avgExit != null && closedIso) {
+  if (values.legs && values.legs.length > 0) {
+    // Multi-leg: store every executed order exactly as entered.
+    for (const leg of values.legs) {
+      statements.push({
+        sql: `INSERT INTO trade_fills (id, trade_id, side, qty, price, fill_time) VALUES (?, ?, ?, ?, ?, ?)`,
+        args: [newId(), id, leg.side, leg.qty, leg.price, localInputToIso(leg.time)],
+      });
+    }
+  } else {
     statements.push({
       sql: `INSERT INTO trade_fills (id, trade_id, side, qty, price, fill_time) VALUES (?, ?, ?, ?, ?, ?)`,
-      args: [newId(), id, values.direction === "long" ? "sell" : "buy", values.qty, values.avgExit, closedIso],
+      args: [
+        newId(),
+        id,
+        values.direction === "long" ? "buy" : "sell",
+        values.qty,
+        values.avgEntry,
+        openedIso,
+      ],
     });
+    if (values.avgExit != null && closedIso) {
+      statements.push({
+        sql: `INSERT INTO trade_fills (id, trade_id, side, qty, price, fill_time) VALUES (?, ?, ?, ?, ?, ?)`,
+        args: [
+          newId(),
+          id,
+          values.direction === "long" ? "sell" : "buy",
+          values.qty,
+          values.avgExit,
+          closedIso,
+        ],
+      });
+    }
   }
   for (const tagId of values.tagIds) {
     statements.push({
@@ -233,10 +281,22 @@ export function useAddAttachment() {
   const { db } = useDb();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (att: { tradeId?: string; journalDate?: string; data: string; caption?: string }) => {
+    mutationFn: async (att: {
+      tradeId?: string;
+      journalDate?: string;
+      data: string;
+      caption?: string;
+    }) => {
       await db.execute(
         `INSERT INTO attachments (id, trade_id, journal_date, data, caption, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-        [newId(), att.tradeId ?? null, att.journalDate ?? null, att.data, att.caption ?? null, new Date().toISOString()]
+        [
+          newId(),
+          att.tradeId ?? null,
+          att.journalDate ?? null,
+          att.data,
+          att.caption ?? null,
+          new Date().toISOString(),
+        ]
       );
     },
     onSuccess: () => qc.invalidateQueries(),
@@ -263,10 +323,33 @@ export function useImportTrades() {
         sql: `INSERT OR IGNORE INTO trades (id, account_id, symbol, exchange, segment, expiry, strike, option_type, direction, status, qty, avg_entry, avg_exit, planned_entry, planned_sl, planned_target, opened_at, closed_at, gross_pnl, charges, net_pnl, r_multiple, playbook_id, confidence, notes, created_at, updated_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
-          t.id, t.account_id, t.symbol, t.exchange, t.segment, t.expiry, t.strike, t.option_type,
-          t.direction, t.status, t.qty, t.avg_entry, t.avg_exit, t.planned_entry, t.planned_sl,
-          t.planned_target, t.opened_at, t.closed_at, t.gross_pnl, t.charges, t.net_pnl,
-          t.r_multiple, t.playbook_id, t.confidence, t.notes, t.created_at, t.updated_at,
+          t.id,
+          t.account_id,
+          t.symbol,
+          t.exchange,
+          t.segment,
+          t.expiry,
+          t.strike,
+          t.option_type,
+          t.direction,
+          t.status,
+          t.qty,
+          t.avg_entry,
+          t.avg_exit,
+          t.planned_entry,
+          t.planned_sl,
+          t.planned_target,
+          t.opened_at,
+          t.closed_at,
+          t.gross_pnl,
+          t.charges,
+          t.net_pnl,
+          t.r_multiple,
+          t.playbook_id,
+          t.confidence,
+          t.notes,
+          t.created_at,
+          t.updated_at,
         ],
       }));
       for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100));
