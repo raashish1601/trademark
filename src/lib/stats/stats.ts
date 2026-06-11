@@ -158,6 +158,16 @@ export const byWeekday = (trades: TradeLike[]) =>
   );
 
 export const bySymbol = (trades: TradeLike[]) => groupBy(trades, (t) => t.symbol);
+
+/** Options trades on expiry day vs other days — the classic Indian FnO question. */
+export const byExpiryDay = (trades: (TradeLike & { expiry?: string | null })[]) =>
+  groupBy(
+    trades.filter((t) => t.segment === "OPT" && t.expiry),
+    (t) =>
+      (t as { expiry?: string | null }).expiry === t.opened_at.slice(0, 10)
+        ? "Expiry day"
+        : "Before expiry"
+  );
 export const bySegment = (trades: TradeLike[]) => groupBy(trades, (t) => t.segment);
 export const byDirection = (trades: TradeLike[]) => groupBy(trades, (t) => t.direction);
 

@@ -8,6 +8,7 @@ import {
   NotebookPen,
   Settings,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 
 export const NAV_ITEMS = [
@@ -19,6 +20,7 @@ export const NAV_ITEMS = [
   { href: "/app/rules", label: "Rules & Mistakes", icon: ShieldCheck },
   { href: "/app/playbooks", label: "Playbooks", icon: Layers },
   { href: "/app/reports", label: "Reports", icon: FileText },
+  { href: "/community", label: "Community", icon: Users },
   { href: "/app/settings", label: "Settings", icon: Settings },
 ] as const;
 

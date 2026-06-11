@@ -13,25 +13,31 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
-/** Mobile bottom tab bar with a center floating quick-add button. */
+/**
+ * Mobile bottom tab bar. Five equal columns — two tabs, a centered slot for the
+ * floating quick-add button, one tab, and a "More" menu — so the FAB sits dead
+ * center. Tabs that don't fit live in the More menu.
+ */
 export function BottomNav() {
   const pathname = usePathname();
   const { setQuickAddOpen } = useUiStore();
-  const firstTwo = MOBILE_TABS.slice(0, 2);
-  const lastTwo = MOBILE_TABS.slice(2);
-  const moreItems = NAV_ITEMS.filter((i) => !MOBILE_TABS.some((t) => t.href === i.href));
+  const leftTabs = MOBILE_TABS.slice(0, 2);
+  const rightTab = MOBILE_TABS[2];
+  const inBar = new Set<string>([...leftTabs, rightTab].filter(Boolean).map((t) => t!.href));
+  const moreItems = NAV_ITEMS.filter((i) => !inBar.has(i.href));
 
   const Tab = ({ tab }: { tab: (typeof MOBILE_TABS)[number] }) => {
-    const active = pathname.startsWith(tab.href);
+    const active = pathname === tab.href || pathname.startsWith(tab.href + "/");
     return (
       <Link
         href={tab.href}
+        aria-current={active ? "page" : undefined}
         className={cn(
           "flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium",
           active ? "text-accent" : "text-muted"
         )}
       >
-        <tab.icon className="h-5 w-5" />
+        <tab.icon className="h-5 w-5" aria-hidden />
         {tab.label}
       </Link>
     );
@@ -39,27 +45,25 @@ export function BottomNav() {
 
   return (
     <nav
-      className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t bg-surface/95 backdrop-blur flex items-stretch"
+      aria-label="Primary"
+      className="md:hidden fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t bg-surface/95 backdrop-blur"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      {firstTwo.map((t) => (
+      {leftTabs.map((t) => (
         <Tab key={t.href} tab={t} />
       ))}
-      <div className="relative flex-1 flex justify-center">
-        <button
-          aria-label="Add trade"
-          onClick={() => setQuickAddOpen(true)}
-          className="absolute -top-5 flex h-12 w-12 items-center justify-center rounded-full bg-accent text-accent-fg shadow-lg active:scale-95 transition-transform"
-        >
-          <Plus className="h-6 w-6" />
-        </button>
-      </div>
-      {lastTwo.map((t) => (
-        <Tab key={t.href} tab={t} />
-      ))}
+
+      {/* Center column reserved for the FAB. */}
+      <div className="flex-1" aria-hidden />
+
+      {rightTab && <Tab tab={rightTab} />}
+
       <DropdownMenu>
-        <DropdownMenuTrigger className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium text-muted">
-          <MoreHorizontal className="h-5 w-5" />
+        <DropdownMenuTrigger
+          className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium text-muted"
+          aria-label="More pages"
+        >
+          <MoreHorizontal className="h-5 w-5" aria-hidden />
           More
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" side="top">
@@ -73,6 +77,15 @@ export function BottomNav() {
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* FAB — absolutely centered over the whole bar. */}
+      <button
+        aria-label="Add trade"
+        onClick={() => setQuickAddOpen(true)}
+        className="absolute left-1/2 top-0 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-accent text-accent-fg shadow-lg ring-4 ring-bg transition-transform active:scale-95"
+      >
+        <Plus className="h-6 w-6" aria-hidden />
+      </button>
     </nav>
   );
 }

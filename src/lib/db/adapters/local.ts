@@ -139,6 +139,12 @@ class LocalDbClient implements DbClient {
 
 let localDbPromise: Promise<DbClient> | null = null;
 
+/** Wipes the local DB (IndexedDB + in-memory cache) so the next open starts fresh. */
+export async function resetLocalDb(): Promise<void> {
+  localDbPromise = null;
+  await deleteLocalDb();
+}
+
 export function createLocalDb(): Promise<DbClient> {
   if (!localDbPromise) {
     localDbPromise = (async () => {

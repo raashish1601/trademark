@@ -6,6 +6,7 @@ import { siteConfig } from "@/config/site";
 
 const NAV = [
   { href: "/features", label: "Features" },
+  { href: "/community", label: "Community" },
   { href: "/docs", label: "Docs" },
   { href: "/blog", label: "Blog" },
   { href: "/faq", label: "FAQ" },

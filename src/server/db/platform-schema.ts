@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core";
 
 /**
  * Platform DB schema — auth + db-mapping metadata ONLY. Journal data never lives here.
@@ -52,6 +52,84 @@ export const verification = sqliteTable("verification", {
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }),
   updatedAt: integer("updated_at", { mode: "timestamp" }),
+});
+
+/* ── Community (public content — lives centrally by design) ─────────────── */
+
+export const profiles = sqliteTable("profiles", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  username: text("username").notNull().unique(),
+  displayName: text("display_name").notNull(),
+  bio: text("bio"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const posts = sqliteTable("posts", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  title: text("title"),
+  body: text("body").notNull(),
+  tradeCard: text("trade_card"), // JSON snapshot shared from the journal
+  tags: text("tags"), // JSON string[]
+  likeCount: integer("like_count").notNull().default(0),
+  commentCount: integer("comment_count").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+});
+
+export const postImages = sqliteTable("post_images", {
+  id: text("id").primaryKey(),
+  postId: text("post_id").notNull(),
+  position: integer("position").notNull().default(0),
+  data: text("data").notNull(), // compressed webp data-url ≤ ~280KB
+});
+
+export const comments = sqliteTable("comments", {
+  id: text("id").primaryKey(),
+  postId: text("post_id").notNull(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const likes = sqliteTable(
+  "likes",
+  {
+    postId: text("post_id").notNull(),
+    userId: text("user_id").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.postId, t.userId] })]
+);
+
+export const reports = sqliteTable("reports", {
+  id: text("id").primaryKey(),
+  reporterId: text("reporter_id").notNull(),
+  targetType: text("target_type").notNull(), // 'post' | 'comment'
+  targetId: text("target_id").notNull(),
+  reason: text("reason"),
+  createdAt: text("created_at").notNull(),
+});
+
+/** Community-submitted blog posts, gated behind admin approval. */
+export const blogSubmissions = sqliteTable("blog_submissions", {
+  id: text("id").primaryKey(),
+  authorId: text("author_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  slug: text("slug").notNull().unique(),
+  excerpt: text("excerpt").notNull(),
+  contentHtml: text("content_html").notNull(),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  reviewerNote: text("reviewer_note"),
+  createdAt: text("created_at").notNull(),
+  reviewedAt: text("reviewed_at"),
 });
 
 /** One row per user → which Turso DB holds their journal, and which mode they're in. */

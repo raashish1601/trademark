@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ImagePlus, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, ImagePlus, Pencil, Share2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import { useAddAttachment, useDeleteAttachment, useDeleteTrade, useTrade } from 
 import { isoToLocalInput } from "../utils";
 import { TradeForm } from "./trade-form";
 import type { TradeFormValues } from "../schemas";
+import { Composer, type TradeCard } from "@/features/community";
 
 export function TradeDetail({ id }: { id: string }) {
   const router = useRouter();
@@ -27,6 +28,7 @@ export function TradeDetail({ id }: { id: string }) {
   const addAttachment = useAddAttachment();
   const deleteAttachment = useDeleteAttachment();
   const [editOpen, setEditOpen] = React.useState(false);
+  const [shareOpen, setShareOpen] = React.useState(false);
 
   React.useEffect(() => {
     const onPaste = async (e: ClipboardEvent) => {
@@ -84,6 +86,9 @@ export function TradeDetail({ id }: { id: string }) {
         <Badge variant={trade.direction === "long" ? "profit" : "loss"}>{trade.direction}</Badge>
         {trade.status === "open" && <Badge variant="warning">open</Badge>}
         <div className="ml-auto flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
+            <Share2 className="h-3.5 w-3.5" /> Share
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
             <Pencil className="h-3.5 w-3.5" /> Edit
           </Button>
@@ -195,6 +200,37 @@ export function TradeDetail({ id }: { id: string }) {
         <DialogContent>
           <DialogHeader><DialogTitle>Edit trade</DialogTitle></DialogHeader>
           <TradeForm tradeId={id} defaults={formDefaults} onSaved={() => setEditOpen(false)} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Share to community</DialogTitle>
+          </DialogHeader>
+          <Composer
+            tradeCard={
+              {
+                symbol: trade.symbol,
+                segment: trade.segment,
+                strike: trade.strike,
+                optionType: trade.option_type,
+                expiry: trade.expiry,
+                direction: trade.direction,
+                entry: trade.avg_entry,
+                exit: trade.avg_exit,
+                sl: trade.planned_sl,
+                target: trade.planned_target,
+                rMultiple: trade.r_multiple,
+                netPnl: trade.status === "closed" ? trade.net_pnl : null,
+                holdMins: trade.closed_at
+                  ? Math.round((new Date(trade.closed_at).getTime() - new Date(trade.opened_at).getTime()) / 60000)
+                  : null,
+                openedAt: trade.opened_at,
+              } satisfies TradeCard
+            }
+            onPosted={() => setShareOpen(false)}
+          />
         </DialogContent>
       </Dialog>
     </div>

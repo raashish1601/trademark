@@ -71,6 +71,68 @@ const STATEMENTS = [
     created_at TEXT NOT NULL,
     delete_after TEXT
   )`,
+  `CREATE TABLE IF NOT EXISTS profiles (
+    user_id TEXT PRIMARY KEY REFERENCES user(id) ON DELETE CASCADE,
+    username TEXT NOT NULL UNIQUE,
+    display_name TEXT NOT NULL,
+    bio TEXT,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS posts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    title TEXT,
+    body TEXT NOT NULL,
+    trade_card TEXT,
+    tags TEXT,
+    like_count INTEGER NOT NULL DEFAULT 0,
+    comment_count INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS post_images (
+    id TEXT PRIMARY KEY,
+    post_id TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    data TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS comments (
+    id TEXT PRIMARY KEY,
+    post_id TEXT NOT NULL,
+    user_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS likes (
+    post_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (post_id, user_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS reports (
+    id TEXT PRIMARY KEY,
+    reporter_id TEXT NOT NULL,
+    target_type TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    reason TEXT,
+    created_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS blog_submissions (
+    id TEXT PRIMARY KEY,
+    author_id TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    excerpt TEXT NOT NULL,
+    content_html TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    reviewer_note TEXT,
+    created_at TEXT NOT NULL,
+    reviewed_at TEXT
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_blog_status ON blog_submissions (status, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_posts_created ON posts (created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_posts_user ON posts (user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_comments_post ON comments (post_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_post_images_post ON post_images (post_id)`,
   `CREATE INDEX IF NOT EXISTS idx_session_user ON session (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_session_token ON session (token)`,
   `CREATE INDEX IF NOT EXISTS idx_account_user ON account (user_id)`,

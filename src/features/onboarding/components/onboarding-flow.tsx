@@ -55,6 +55,34 @@ export function OnboardingFlow() {
 
   const goDashboard = React.useCallback(() => router.replace("/app/dashboard"), [router]);
 
+  // Returning signed-in users with a provisioned DB skip the mode picker entirely.
+  const [autoConnecting, setAutoConnecting] = React.useState(true);
+  React.useEffect(() => {
+    if (state.status !== "none") {
+      setAutoConnecting(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!session) return;
+        const res = await fetch("/api/db/status");
+        const data = (await res.json()) as { provisioned?: boolean };
+        if (!cancelled && data.provisioned) {
+          await connectHosted();
+          return;
+        }
+      } catch {
+        /* fall through to manual picker */
+      } finally {
+        if (!cancelled) setAutoConnecting(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session, state.status, connectHosted]);
+
   // Once a DB is connected, decide: already onboarded → dashboard, else setup.
   React.useEffect(() => {
     if (state.status !== "ready") return;
@@ -95,6 +123,19 @@ export function OnboardingFlow() {
     if (key === "demo") void handleDemo();
     else setStep(key);
   };
+
+  // While we check a returning user's session, show a quiet connecting state
+  // instead of flashing the full mode picker.
+  if (autoConnecting && session && step === "choose") {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <div className="flex items-center gap-2 text-muted">
+          <CandlestickChart className="h-5 w-5 animate-pulse text-accent" aria-hidden />
+          <span className="text-sm">Welcome back — opening your journal…</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid min-h-dvh lg:grid-cols-[1fr_1.1fr]">

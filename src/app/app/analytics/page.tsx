@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   byDirection,
+  byExpiryDay,
   byHourOfDay,
   bySegment,
   bySymbol,
@@ -16,6 +17,7 @@ import {
   groupBy,
   streaks,
 } from "@/lib/stats/stats";
+import { EmotionsPanel } from "@/features/rules";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function AnalyticsPage() {
@@ -48,6 +50,7 @@ export default function AnalyticsPage() {
         <TabsContent value="time" className="grid gap-4 md:grid-cols-2">
           <GroupBar title="By entry hour" stats={byHourOfDay(closed)} />
           <GroupBar title="By day of week" stats={byWeekday(closed)} />
+          <GroupBar title="Expiry day vs other days (options)" stats={byExpiryDay(closed)} />
         </TabsContent>
 
         <TabsContent value="setup">
@@ -62,6 +65,7 @@ export default function AnalyticsPage() {
 
         <TabsContent value="distribution" className="grid gap-4 md:grid-cols-2">
           <RHistogram trades={closed} />
+          <EmotionsPanel from={from} to={to} />
           <Card>
             <CardHeader><CardTitle>Streaks</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">

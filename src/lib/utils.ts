@@ -43,6 +43,19 @@ export function todayKey(): string {
   return toDateKey(new Date());
 }
 
+/** Compact relative time: 2m · 3h · 5d · 12 Jan. */
+export function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d`;
+  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+}
+
 export function formatHoldTime(openedAt: string, closedAt: string | null): string {
   if (!closedAt) return "open";
   const ms = new Date(closedAt).getTime() - new Date(openedAt).getTime();

@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Test/CI builds set NEXT_DIST_DIR (e.g. ".next-e2e") so they never clobber
+  // the dev server's .next cache — building while `next dev` runs corrupts it.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   headers: async () => [
     {
       source: "/(.*)",

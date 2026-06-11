@@ -24,7 +24,7 @@ and rules — and keep your data in **your own database**.
 ## Stack
 
 Next.js (App Router) · Tailwind v4 · Better Auth · Drizzle · Turso/libSQL · TanStack Query ·
-Zustand · Recharts · sql.js · Serwist. See [PLAN.md](PLAN.md) for the full architecture.
+Zustand · Recharts · sql.js · Serwist. See [docs/PLAN.md](docs/PLAN.md) for the full architecture, [docs/COMMUNITY_PLAN.md](docs/COMMUNITY_PLAN.md) for the community design, and [docs/ENGINEERING.md](docs/ENGINEERING.md) for engineering standards.
 
 ## Local development
 

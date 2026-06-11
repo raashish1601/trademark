@@ -172,17 +172,17 @@ export interface MistakeStat {
   cost: number; // sum of net P&L of trades carrying this mistake tag
 }
 
-export function useMistakeStats(from: string | null, to: string | null) {
+export function useTagStats(kind: "mistake" | "emotion", from: string | null, to: string | null) {
   const { db } = useDb();
   return useQuery({
-    queryKey: ["mistakes", from, to],
+    queryKey: ["tag-stats", kind, from, to],
     queryFn: async (): Promise<MistakeStat[]> => {
       let sql = `SELECT g.id AS tag_id, g.name, g.color, COUNT(*) AS cnt, SUM(t.net_pnl) AS cost
                  FROM trade_tags tt
-                 JOIN tags g ON g.id = tt.tag_id AND g.kind = 'mistake'
+                 JOIN tags g ON g.id = tt.tag_id AND g.kind = ?
                  JOIN trades t ON t.id = tt.trade_id AND t.status = 'closed'
                  WHERE 1=1`;
-      const args: string[] = [];
+      const args: string[] = [kind];
       if (from) {
         sql += ` AND date(t.opened_at) >= ?`;
         args.push(from);
@@ -203,3 +203,6 @@ export function useMistakeStats(from: string | null, to: string | null) {
     },
   });
 }
+
+export const useMistakeStats = (from: string | null, to: string | null) =>
+  useTagStats("mistake", from, to);

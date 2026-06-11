@@ -15,6 +15,7 @@ export const serverEnv = {
   emailFrom: process.env.EMAIL_FROM ?? "TradeMark <onboarding@resend.dev>",
   upstashUrl: process.env.UPSTASH_REDIS_REST_URL ?? "",
   upstashToken: process.env.UPSTASH_REDIS_REST_TOKEN ?? "",
+  adminEmails: process.env.ADMIN_EMAILS ?? "",
 };
 
 export const hasTursoApi = () => Boolean(serverEnv.tursoApiToken && serverEnv.tursoOrg);
