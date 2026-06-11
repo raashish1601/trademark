@@ -16,9 +16,24 @@ interface StatCardProps {
 }
 
 /** KPI card with an animated rolling number (NumberFlow). */
-export function StatCard({ label, value, format, prefix, suffix, tone = "neutral", sub, className }: StatCardProps) {
+export function StatCard({
+  label,
+  value,
+  format,
+  prefix,
+  suffix,
+  tone = "neutral",
+  sub,
+  className,
+}: StatCardProps) {
   const color =
-    tone === "auto" ? (value > 0 ? "text-profit" : value < 0 ? "text-loss" : "text-foreground") : "text-foreground";
+    tone === "auto"
+      ? value > 0
+        ? "text-profit"
+        : value < 0
+          ? "text-loss"
+          : "text-foreground"
+      : "text-foreground";
   return (
     <Card className={cn("p-4 min-w-0", className)}>
       <div className="micro-label">{label}</div>
@@ -36,8 +51,10 @@ export function StatCard({ label, value, format, prefix, suffix, tone = "neutral
   );
 }
 
+// Paise included — money displays are never rounded away.
 export const inrFormat: Format = {
   style: "currency",
   currency: "INR",
-  maximumFractionDigits: 0,
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
 };
