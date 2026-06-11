@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DatePicker, DateTimePicker } from "@/components/ui/date-time-picker";
 import { PnlText } from "@/components/shared/pnl-text";
 import { cn } from "@/lib/utils";
 import { tradeFormSchema, type TradeFormValues } from "../schemas";
@@ -252,7 +253,18 @@ export function TradeForm({
             </div>
             <div className="space-y-1">
               <Label>Expiry{legCount > 1 ? " (all legs)" : ""}</Label>
-              <Input type="date" disabled={activeLeg !== 0} {...register("expiry")} />
+              <Controller
+                control={control}
+                name="expiry"
+                render={({ field }) => (
+                  <DatePicker
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    disabled={activeLeg !== 0}
+                    aria-label="Expiry date"
+                  />
+                )}
+              />
             </div>
           </div>
         )}
@@ -425,11 +437,31 @@ export function TradeForm({
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <Label>Opened at</Label>
-            <Input type="datetime-local" {...register("openedAt")} />
+            <Controller
+              control={control}
+              name="openedAt"
+              render={({ field }) => (
+                <DateTimePicker
+                  value={field.value}
+                  onChange={field.onChange}
+                  aria-label="Opened at"
+                />
+              )}
+            />
           </div>
           <div className="space-y-1">
             <Label>Closed at</Label>
-            <Input type="datetime-local" {...register("closedAt")} />
+            <Controller
+              control={control}
+              name="closedAt"
+              render={({ field }) => (
+                <DateTimePicker
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  aria-label="Closed at"
+                />
+              )}
+            />
           </div>
         </div>
         <div className="space-y-1">
@@ -442,7 +474,7 @@ export function TradeForm({
         <div className="flex items-center justify-between rounded-lg border bg-surface-2 px-3 py-2 text-sm">
           <span className="text-muted text-xs">
             Gross <PnlText value={preview.gross} /> · Charges{" "}
-            <span className="font-money">₹{preview.charges.toFixed(0)}</span>
+            <span className="font-money">₹{preview.charges.toFixed(2)}</span>
             {preview.r != null && <> · {preview.r}R</>}
           </span>
           <PnlText value={preview.net} className="text-base font-semibold" />

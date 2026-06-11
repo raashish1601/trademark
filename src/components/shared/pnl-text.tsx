@@ -3,7 +3,8 @@ import { cn, formatINR } from "@/lib/utils";
 export function PnlText({
   value,
   className,
-  decimals = false,
+  // Money is never rounded away — brokers bill in paise, we show paise.
+  decimals = true,
   signed = true,
 }: {
   value: number;
