@@ -251,14 +251,26 @@ export function useLeaderboard(board: "contrib" | "streak", period: "month" | "a
 /** Publishes (or hides) the viewer's journal streak — explicit opt-in only. */
 export function useShareStreak() {
   const qc = useQueryClient();
+  type Me = { shareStreak: boolean } & Record<string, unknown>;
   return useMutation({
     mutationFn: (input: { share: boolean; current: number; best: number }) =>
       request<{ shared: boolean }>("/api/community/streak", {
         method: "POST",
         body: JSON.stringify(input),
       }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["community-me"] }); // drives the toggle state
+    // Optimistic: the switch flips instantly; server failure rolls it back.
+    onMutate: (input) => {
+      const prev = qc.getQueryData<Me>(["community-me"]);
+      qc.setQueryData<Me>(["community-me"], (me) =>
+        me ? { ...me, shareStreak: input.share } : me
+      );
+      return { prev };
+    },
+    onError: (_e, _input, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["community-me"], ctx.prev);
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ["community-me"] });
       void qc.invalidateQueries({ queryKey: ["community-user"] });
       void qc.invalidateQueries({ queryKey: ["community-leaderboard"] });
     },

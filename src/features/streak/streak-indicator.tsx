@@ -161,7 +161,6 @@ export function StreakIndicator() {
           <Switch
             checked={Boolean(me?.shareStreak)}
             onCheckedChange={setShare}
-            disabled={share.isPending}
             aria-label="Share streak on leaderboard"
           />
         </div>
