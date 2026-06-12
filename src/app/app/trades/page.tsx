@@ -18,6 +18,7 @@ import {
   type AdvancedTradeFilters,
 } from "@/features/trades";
 import { useRuleDays } from "@/features/rules";
+import { RiskGuardrailBanner } from "@/features/goals";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PnlText } from "@/components/shared/pnl-text";
@@ -73,6 +74,7 @@ export default function TradesPage() {
         }
         actions={<CsvImport />}
       />
+      <RiskGuardrailBanner />
       {filtered && filtered.length > 0 && (
         <div className="-mt-3 text-sm text-muted">
           Net: <PnlText value={netPnl(closedOnly(filtered))} className="font-semibold" />

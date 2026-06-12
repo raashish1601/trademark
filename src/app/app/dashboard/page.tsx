@@ -5,6 +5,7 @@ import { useFilterStore, periodToRange } from "@/stores/filter-store";
 import { useTrades } from "@/features/trades";
 import { useAdherence } from "@/features/rules";
 import { KpiRow, RecentTrades, Greeting } from "@/features/dashboard";
+import { RiskGuardrailBanner, WeeklyGoalsWidget } from "@/features/goals";
 import { DailyChecklist, ExpensiveHabitNudge, MistakesPanel } from "@/features/rules";
 import { MonthHeatmap } from "@/features/calendar";
 import { useJournalDates } from "@/features/journal";
@@ -60,7 +61,9 @@ export default function DashboardPage() {
   return (
     <div className="space-y-4">
       <Greeting />
+      <RiskGuardrailBanner />
       <KpiRow trades={trades} adherencePct={adherence?.overallPct} />
+      <WeeklyGoalsWidget />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
