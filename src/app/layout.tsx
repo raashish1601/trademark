@@ -69,15 +69,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           />
           <PwaRegister />
           <AnalyticsTracker />
-          {/* Vercel-side visitor + web-vitals collection. Mounted only on Vercel
-              builds: off Vercel the /_vercel/* scripts 404 and spam the console.
-              (Server component, so the system VERCEL env var is readable here.) */}
-          {process.env.VERCEL ? (
+          {/* Vercel-side visitor + web-vitals collection. Render only on Vercel:
+              the scripts live at /_vercel/* which 404s (console errors) on
+              local production builds. */}
+          {process.env.VERCEL === "1" && (
             <>
               <Analytics />
               <SpeedInsights />
             </>
-          ) : null}
+          )}
           <ConfirmProvider>{children}</ConfirmProvider>
           <Toaster
             position="top-center"
