@@ -3,7 +3,7 @@ import Link from "next/link";
 import { NotebookPen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
-import { NotificationsBell } from "@/features/community";
+import { MessagesButton, NotificationsBell } from "@/features/community";
 import { QueryProvider } from "@/providers/query-provider";
 
 export const metadata: Metadata = {
@@ -20,6 +20,7 @@ export default function CommunityLayout({ children }: { children: React.ReactNod
         <SiteHeader
           cta={
             <>
+              <MessagesButton />
               <NotificationsBell />
               <Button variant="outline" size="sm" asChild>
                 <Link href="/app/dashboard">
