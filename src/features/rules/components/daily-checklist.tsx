@@ -12,7 +12,16 @@ const STATUSES: { value: RuleCheck["status"]; icon: typeof Check; activeClass: s
 ];
 
 /** Tick off your rules for a given day — shown on Dashboard and Rules screens. */
-export function DailyChecklist({ date, compact = false }: { date: string; compact?: boolean }) {
+export function DailyChecklist({
+  date,
+  compact = false,
+  footer,
+}: {
+  date: string;
+  compact?: boolean;
+  /** Extra content pinned at the card bottom (e.g. the expensive-habit nudge). */
+  footer?: React.ReactNode;
+}) {
   const { data: rules = [] } = useRules();
   const { data: checks = [] } = useRuleChecks(date);
   const setCheck = useSetRuleCheck();
@@ -34,7 +43,9 @@ export function DailyChecklist({ date, compact = false }: { date: string; compac
           const current = statusFor(rule.id);
           return (
             <div key={rule.id} className="flex items-center justify-between gap-2 py-1">
-              <span className={cn("text-sm", current === "broken" && "text-loss")}>{rule.text}</span>
+              <span className={cn("text-sm", current === "broken" && "text-loss")}>
+                {rule.text}
+              </span>
               <div className="flex gap-1 shrink-0">
                 {STATUSES.map((s) => (
                   <button
@@ -44,7 +55,9 @@ export function DailyChecklist({ date, compact = false }: { date: string; compac
                     onClick={() => setCheck.mutate({ date, ruleId: rule.id, status: s.value })}
                     className={cn(
                       "flex h-6 w-6 items-center justify-center rounded-md border transition-colors",
-                      current === s.value ? s.activeClass : "border-border text-muted/50 hover:text-muted"
+                      current === s.value
+                        ? s.activeClass
+                        : "border-border text-muted/50 hover:text-muted"
                     )}
                   >
                     <s.icon className="h-3.5 w-3.5" />
@@ -54,6 +67,7 @@ export function DailyChecklist({ date, compact = false }: { date: string; compac
             </div>
           );
         })}
+        {footer && <div className="pt-2">{footer}</div>}
       </CardContent>
     </Card>
   );
