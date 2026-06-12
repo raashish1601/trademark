@@ -81,9 +81,8 @@ Sources: [Framiq 2026 teardown](https://framiq.app/blog/best-saas-landing-pages-
 - [ ] **Video v2** — captions track, chapter markers, refreshed recording
       after major UI changes (re-run the capture script).
 - [ ] **OG image variants** — per-page og images (features, blog, compare).
-- [ ] **Accent-button contrast** — decide a darker accent (or dark-on-accent
-      text) for filled buttons so a11y hits 100; affects the whole design
-      system, so it needs its own pass.
+- [x] **Accent-button contrast** — resolved by the audit lane's
+      `--accent-solid` token (PR #23); landing adopted it for solid fills.
 - [ ] **Refresh the demo video** after the next major UI change (re-run the
       capture pipeline; keep total media under 8 MB).
 
@@ -104,8 +103,8 @@ prod deploy verified after merge.
 - e2e-smoke 23/23 · landing suite 10/10 (hero image, live metrics vs API,
   video click-to-play, both CTAs, scrolled header, footer links,
   reduced-motion) · mobile-audit zero overflow · vitest 115 green.
-- Known deferral: a11y 97 → 100 needs an accent-button contrast decision
-  (white on `#8b5cf6` is 4.2:1) — design-system-wide, tracked in backlog.
+- a11y 97 at measurement time was the accent-button contrast; main's
+  `--accent-solid` token (PR #23) merged in and the landing adopted it.
 
 ## Shipped by the loop
 

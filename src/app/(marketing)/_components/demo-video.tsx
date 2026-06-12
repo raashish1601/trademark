@@ -55,7 +55,7 @@ export function DemoVideo({ duration }: { duration: string }) {
               className="block h-auto w-full"
             />
             <span className="absolute inset-0 flex items-center justify-center bg-black/25 transition-colors group-hover:bg-black/40">
-              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-accent-fg shadow-2xl ring-4 ring-white/25 transition-transform duration-300 group-hover:scale-110 sm:h-20 sm:w-20">
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-accent-solid text-accent-fg shadow-2xl ring-4 ring-white/25 transition-transform duration-300 group-hover:scale-110 sm:h-20 sm:w-20">
                 <Play
                   className="h-7 w-7 translate-x-0.5 sm:h-8 sm:w-8"
                   fill="currentColor"
