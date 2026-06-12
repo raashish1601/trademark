@@ -214,4 +214,4 @@ trade logged from the web app.
   content scripts (optional host permission + dynamic registration), versioned
   adapter registry (`extension/src/brokers/`), "Log in TradeMark" pill that
   prefills the quick log via SW-staged captures, silent degradation on DOM
-  drift, Kite DOM fixtures + 6 new e2e steps, 26 new unit tests. (PR #TBD)
+  drift, Kite DOM fixtures + 6 new e2e steps, 26 new unit tests. (PR #37)
