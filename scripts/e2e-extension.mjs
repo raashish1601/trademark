@@ -49,9 +49,14 @@ const ctx = await chromium.launchPersistentContext(userDataDir, {
 
 // 401/404 resource logs are by-design here: the panel polls /api/db/status
 // while signed out (401) and the token-vending flow probes before provisioning
-// (404). Chromium logs every non-2xx load as a console error; anything else
-// (403s, 5xx, JS errors) still fails the run.
-const benign = (text) => /Failed to load resource: .*(401|404)/.test(text);
+// (404). Turso's edge also occasionally answers one request without CORS
+// headers — Chromium logs a CORS error plus a bare ERR_FAILED; the libsql
+// client retries and the step assertions still gate the real outcome.
+// Anything else (403s, 5xx, JS errors) still fails the run.
+const benign = (text) =>
+  /Failed to load resource: .*(401|404)/.test(text) ||
+  /turso\.io.*blocked by CORS policy/.test(text) ||
+  /^Failed to load resource: net::ERR_FAILED$/.test(text);
 const watchPage = (p) => {
   p.on("console", (m) => {
     if (m.type() === "error" && !benign(m.text()))
