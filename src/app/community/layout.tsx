@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { NotebookPen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/shared/site-header";
-import { MessagesFab, NotificationsBell } from "@/features/community";
+import { CommunitySearch, MessagesFab, NotificationsBell } from "@/features/community";
 import { QueryProvider } from "@/providers/query-provider";
 
 export const metadata: Metadata = {
@@ -20,6 +21,9 @@ export default function CommunityLayout({ children }: { children: React.ReactNod
         <SiteHeader
           cta={
             <>
+              <Suspense>
+                <CommunitySearch />
+              </Suspense>
               <NotificationsBell />
               <Button variant="outline" size="sm" asChild>
                 <Link href="/app/dashboard">
