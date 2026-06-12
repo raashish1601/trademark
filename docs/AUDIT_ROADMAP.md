@@ -8,7 +8,7 @@
 
 ## Backlog (ordered; each = one loop iteration)
 
-- [ ] **1. Security audit** — authz on every API route (session + ownership checks), rate limits on all writes, origin checks, secrets never in client bundles (scan the built output for env leakage), CSP + security headers in next.config (CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy), input validation coverage, Better Auth config hardening, npm audit, demo creds stripped from scripts (env-only).
+- [x] **1. Security audit** — authz on every API route (session + ownership checks), rate limits on all writes, origin checks, secrets never in client bundles (scan the built output for env leakage), CSP + security headers in next.config (CSP, X-Frame-Options, Referrer-Policy, Permissions-Policy), input validation coverage, Better Auth config hardening, npm audit, demo creds stripped from scripts (env-only). — PR #15
 - [ ] **2. Web vitals all-green** — measure LCP/CLS/INP/TBT with Lighthouse on key pages (/, /features, /community, /app/dashboard via demo) at mobile+desktop; fix to green: image priorities, font display, bundle trims, suspense boundaries.
 - [ ] **3. SEO** — metadata completeness per route, OG/Twitter cards, sitemap.xml + robots.txt correctness, structured data (JSON-LD already partial), canonical urls, internal linking; validate with a crawler script.
 - [ ] **4. Accessibility** — axe-core via Playwright on every route (inject @axe-core/playwright), fix all serious/critical violations; keyboard-only walkthrough of trade entry + community post flows; focus traps in dialogs; contrast on all 4 themes.
@@ -21,3 +21,5 @@
 ## Shipped by the loop
 
 <!-- - [x] YYYY-MM-DD — slice — PR #N -->
+
+- [x] 2026-06-12 — Security audit: CSP + headers, account-delete purge, javascript:-URL XSS fix, rate limits on all writes, query caps, Better Auth hardening, env-only demo seed, bundle secret scan, scripts/e2e-security.mjs (25 checks) — PR #15
