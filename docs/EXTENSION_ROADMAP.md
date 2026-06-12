@@ -133,4 +133,4 @@ trade logged from the web app.
   pinned-ID origin allowlist, token-vended Turso writes via the shared
   statement builder, quick trade log with contract parsing, today's rules
   tri-state checklist, P&L + streak glance strip, settings (app URL override +
-  sign-out), Playwright extension e2e. (PR #18)
+  sign-out), Playwright extension e2e. (PR #22)
