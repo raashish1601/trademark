@@ -222,23 +222,39 @@ label:has(> input[type="file"].hidden) {
   animation: float-slow 7s ease-in-out infinite;
 }
 
-/* CSS-driven hero entrance: unlike a JS (motion) entrance, this never leaves
-   the server-rendered text at opacity 0 waiting for hydration — the hero
-   paints with the document, which is what mobile LCP scores. Deliberately
-   transform-only: Chrome drops elements that fade in from opacity:0 as LCP
-   candidates, so a fade would hand LCP to whatever paints next (header logo).
-   Stagger with --rise-delay. */
-@keyframes rise {
+/* Hero entrance — pure CSS so above-the-fold content never waits for JS.
+   Never put this on the page's LCP element (the landing h1 stays unanimated):
+   Chrome drops elements that fade in from opacity:0 as LCP candidates. The
+   global reduced-motion rule below zeroes both the duration and the delay. */
+@keyframes rise-in {
   from {
-    transform: translateY(16px);
+    opacity: 0;
+    transform: translateY(18px);
   }
   to {
+    opacity: 1;
     transform: translateY(0);
   }
 }
 .animate-rise {
-  animation: rise 0.55s cubic-bezier(0.21, 0.65, 0.36, 1) both;
-  animation-delay: var(--rise-delay, 0s);
+  animation: rise-in 0.7s cubic-bezier(0.21, 0.65, 0.36, 1) both;
+}
+
+/* Product screenshot frame: gentle perspective that flattens on hover. */
+.hero-tilt {
+  transform: perspective(1400px) rotateX(4deg);
+  transform-origin: center top;
+  transition: transform 0.6s cubic-bezier(0.21, 0.65, 0.36, 1);
+}
+@media (hover: hover) {
+  .hero-frame:hover .hero-tilt {
+    transform: perspective(1400px) rotateX(0deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-tilt {
+    transform: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

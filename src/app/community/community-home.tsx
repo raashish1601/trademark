@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Composer, Feed, InlineComposer, SUGGESTED_TAGS, useMyProfile } from "@/features/community";
 import { useTrendingTags, type FeedScope, type FeedSort } from "@/features/community/api";
 import type { FeedResponse } from "@/features/community/types";
+import { FEED_CONTEXT_KEY } from "@/features/community/back-nav";
 
 /**
  * useSearchParams CSR-bails everything up to the nearest Suspense boundary on
@@ -31,6 +32,14 @@ function TagParamBridge({ onTag }: { onTag: (tag: string | null) => void }) {
 function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
   const router = useRouter();
   const [tag, setTag] = React.useState<string | null>(null);
+  // Remember the active filters so the post detail's back link can restore them.
+  React.useEffect(() => {
+    try {
+      sessionStorage.setItem(FEED_CONTEXT_KEY, window.location.search);
+    } catch {
+      /* storage blocked — back link falls back to the plain feed */
+    }
+  }, [tag]);
   const [view, setView] = React.useState<{ sort: FeedSort; scope: FeedScope }>({
     sort: "latest",
     scope: "all",
