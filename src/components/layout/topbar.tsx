@@ -9,7 +9,7 @@ import {
   Database,
   HardDrive,
   LogOut,
-  MessageSquarePlus,
+  Megaphone,
   Moon,
   Search,
   ShieldCheck,
@@ -95,8 +95,8 @@ export function Topbar() {
         <StreakIndicator />
         <FeedbackDialog
           trigger={
-            <Button variant="ghost" size="icon" aria-label="Send feedback">
-              <MessageSquarePlus className="h-4 w-4" />
+            <Button variant="ghost" size="icon" aria-label="Send feedback" title="Send feedback">
+              <Megaphone className="h-4 w-4" />
             </Button>
           }
         />
