@@ -4,12 +4,11 @@ import * as React from "react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { PenSquare, Search, X } from "lucide-react";
+import { PenSquare, X } from "lucide-react";
 import { useSession } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Composer, Feed, InlineComposer, SUGGESTED_TAGS, useMyProfile } from "@/features/community";
 import { useTrendingTags, type FeedScope, type FeedSort } from "@/features/community/api";
 import type { FeedResponse } from "@/features/community/types";
@@ -21,17 +20,24 @@ import { FEED_CONTEXT_KEY } from "@/features/community/back-nav";
  * would only contain the fallback and the ISR-seeded feed would never reach
  * the HTML. This bridge isolates the bailout to a render-nothing child.
  */
-function TagParamBridge({ onTag }: { onTag: (tag: string | null) => void }) {
-  const tag = useSearchParams().get("tag");
+function ParamsBridge({ onParams }: { onParams: (tag: string | null, q: string | null) => void }) {
+  const params = useSearchParams();
+  const tag = params.get("tag");
+  const q = params.get("q");
   React.useEffect(() => {
-    onTag(tag);
-  }, [tag, onTag]);
+    onParams(tag, q);
+  }, [tag, q, onParams]);
   return null;
 }
 
 function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
   const router = useRouter();
   const [tag, setTag] = React.useState<string | null>(null);
+  const [search, setSearch] = React.useState<string | null>(null);
+  const onParams = React.useCallback((t: string | null, q: string | null) => {
+    setTag(t);
+    setSearch(q);
+  }, []);
   // Remember the active filters so the post detail's back link can restore them.
   React.useEffect(() => {
     try {
@@ -39,14 +45,12 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
     } catch {
       /* storage blocked — back link falls back to the plain feed */
     }
-  }, [tag]);
+  }, [tag, search]);
   const [view, setView] = React.useState<{ sort: FeedSort; scope: FeedScope }>({
     sort: "latest",
     scope: "all",
   });
   const [composeOpen, setComposeOpen] = React.useState(false);
-  const [searchInput, setSearchInput] = React.useState("");
-  const [search, setSearch] = React.useState<string | null>(null);
   const { data: session } = useSession();
   const { data: me } = useMyProfile(Boolean(session));
   const { data: trending } = useTrendingTags();
@@ -67,7 +71,7 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 py-6 lg:grid-cols-[190px_minmax(0,1fr)_250px]">
       <Suspense fallback={null}>
-        <TagParamBridge onTag={setTag} />
+        <ParamsBridge onParams={onParams} />
       </Suspense>
       {/* ── Left rail ── */}
       <aside className="hidden lg:block">
@@ -131,39 +135,6 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
       {/* ── Feed ── */}
       <section aria-label="Community feed" className="min-w-0">
         <InlineComposer />
-        <form
-          className="relative mb-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setSearch(searchInput.trim() || null);
-          }}
-          role="search"
-        >
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" aria-hidden />
-          <Input
-            value={searchInput}
-            onChange={(e) => {
-              setSearchInput(e.target.value);
-              if (e.target.value === "") setSearch(null);
-            }}
-            placeholder="Search posts…"
-            className="pl-9"
-            aria-label="Search posts"
-          />
-          {search && (
-            <button
-              type="button"
-              aria-label="Clear search"
-              className="absolute right-3 top-2.5 text-muted hover:text-foreground"
-              onClick={() => {
-                setSearch(null);
-                setSearchInput("");
-              }}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </form>
         <div className="mb-4 flex items-center gap-1 overflow-x-auto lg:hidden">
           <Link
             href="/community/leaderboard"
@@ -185,11 +156,18 @@ function CommunityHome({ initialFeed }: { initialFeed: FeedResponse | null }) {
             </button>
           ))}
         </div>
-        {tag && (
+        {(tag || search) && (
           <div className="mb-3 flex items-center gap-2 text-sm">
-            <span className="rounded-md bg-accent/10 px-2 py-1 font-medium text-accent">
-              #{tag}
-            </span>
+            {tag && (
+              <span className="rounded-md bg-accent/10 px-2 py-1 font-medium text-accent">
+                #{tag}
+              </span>
+            )}
+            {search && (
+              <span className="rounded-md bg-accent/10 px-2 py-1 font-medium text-accent">
+                &ldquo;{search}&rdquo;
+              </span>
+            )}
             <button
               onClick={() => router.push("/community")}
               className="flex items-center gap-1 text-xs text-muted hover:text-foreground"

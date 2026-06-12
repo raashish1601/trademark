@@ -24,3 +24,4 @@ export type {
   PostDetailResponse,
   RelatedPostView,
 } from "./types";
+export { CommunitySearch } from "./components/community-search";
