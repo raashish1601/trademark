@@ -52,14 +52,17 @@ export default function DashboardPage() {
   return (
     <div className="space-y-4">
       <Greeting />
-      <ExpensiveHabitNudge from={from} to={to} />
       <KpiRow trades={trades} adherencePct={adherence?.overallPct} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <EquityChart trades={trades} />
         </div>
-        <DailyChecklist date={todayKey()} compact />
+        <DailyChecklist
+          date={todayKey()}
+          compact
+          footer={<ExpensiveHabitNudge from={from} to={to} />}
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
