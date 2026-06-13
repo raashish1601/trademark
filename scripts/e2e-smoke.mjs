@@ -57,6 +57,34 @@ for (const path of [
   });
 }
 
+console.log("— Community —");
+await step("per-symbol stream renders with the not-advice banner", async () => {
+  // Signed-out /community never reaches networkidle (polling) → domcontentloaded.
+  await page.goto(`${BASE}/community/s/NIFTY`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("heading", { name: "$NIFTY" }).first().waitFor({ timeout: 30000 });
+  await page.locator("[data-not-advice]").first().waitFor({ timeout: 15000 });
+});
+
+await step("community feed renders; post cards expose the reshare control", async () => {
+  await page.goto(`${BASE}/community`, { waitUntil: "domcontentloaded" });
+  // Wait for either at least one post card or the empty state to settle.
+  await page
+    .locator("article, [data-empty-state]")
+    .first()
+    .waitFor({ timeout: 30000 })
+    .catch(() => {});
+  const cards = await page.locator("article").count();
+  // When the feed has posts, every card must carry a Reshare control (the action
+  // gates sign-in on click, so rendering it signed-out is correct). An empty feed
+  // is a valid state on a fresh e2e DB — nothing to assert there.
+  if (cards > 0) {
+    await page
+      .getByRole("button", { name: /Reshare post/ })
+      .first()
+      .waitFor({ timeout: 10000 });
+  }
+});
+
 console.log("— Demo onboarding —");
 await step("onboarding renders 3 mode cards", async () => {
   await page.goto(`${BASE}/app/onboarding`, { waitUntil: "networkidle" });
@@ -313,8 +341,19 @@ await step("settings sections render", async () => {
   await page.goto(`${BASE}/app/settings`, { waitUntil: "networkidle" });
   await page.getByText("Storage & data").waitFor({ timeout: 15000 });
   await page.getByText("Account & charges").waitFor();
+  await page.getByText("Recompute charges").first().waitFor();
   await page.getByText("Appearance").waitFor();
   await page.getByText("Danger zone").waitFor();
+});
+
+await step("recompute charges: idempotent no-op on a fresh demo journal", async () => {
+  // The demo seed already stores engine-correct charges, so the maintenance
+  // action must find nothing to change and never rewrite P&L silently.
+  await page.getByTestId("recompute-charges-btn").click();
+  await page
+    .getByText(/already correct|No closed trades/)
+    .first()
+    .waitFor({ timeout: 15000 });
 });
 
 await step("demo data persists across reload (IndexedDB)", async () => {

@@ -12,6 +12,7 @@ import {
   Pencil,
   Pin,
   PinOff,
+  Repeat2,
   Share2,
   Trash2,
   UserCheck,
@@ -33,16 +34,23 @@ import {
   useFollowAuthor,
   usePinPost,
   useRecordShare,
+  useReshare,
   useToggleBlock,
   useToggleBookmark,
   useToggleLike,
+  useUnfurl,
 } from "../api";
 import { formatCount, formatPostDate } from "../format";
+import { extractFirstLink } from "../unfurl";
 import type { PostView } from "../types";
 import type { ReactionKind } from "../reactions";
 import { CommunityAvatar } from "./avatar";
+import { UnfurlCard } from "./unfurl-card";
 import { TradeCardView } from "./trade-card-view";
+import { QuotedPostCard } from "./quoted-post-card";
+import { QuoteDialog } from "./quote-dialog";
 import { RichText } from "./rich-text";
+import { extractCashtags } from "../cashtags";
 import { SignInGate } from "./sign-in-gate";
 import { ReportDialog } from "./report-dialog";
 import { ReactionPicker } from "./reaction-picker";
@@ -68,12 +76,14 @@ export function PostCard({
   const toggleBookmark = useToggleBookmark();
   const toggleBlock = useToggleBlock(post.author.username);
   const recordShare = useRecordShare();
+  const reshare = useReshare();
   const followAuthor = useFollowAuthor(post.id, post.author.username);
   const pinPost = usePinPost();
   const deletePost = useDeletePost();
   const confirmDialog = useConfirm();
   const [gateOpen, setGateOpen] = React.useState(false);
   const [reportOpen, setReportOpen] = React.useState(false);
+  const [quoteOpen, setQuoteOpen] = React.useState(false);
   const [expanded, setExpanded] = React.useState(detail);
   const [editing, setEditing] = React.useState(false);
   const pendingAction = React.useRef<(() => void) | null>(null);
@@ -124,6 +134,19 @@ export function PostCard({
           : toast.error("Could not follow"),
     });
 
+  // Instant plain reshare (no commentary). 401 → sign-in gate → retry.
+  const doReshare = () =>
+    reshare.mutate(
+      { targetId: post.id },
+      {
+        onSuccess: () => toast.success("Reshared to your followers"),
+        onError: (e) =>
+          e instanceof ApiError && e.status === 401
+            ? onUnauthorized(doReshare)
+            : toast.error(e instanceof Error ? e.message : "Could not reshare"),
+      }
+    );
+
   const handlePin = () =>
     pinPost.mutate(post.id, {
       onSuccess: (r) =>
@@ -166,6 +189,9 @@ export function PostCard({
 
   const longBody = post.body.length > 420;
   const body = expanded || !longBody ? post.body : post.body.slice(0, 400).trimEnd() + "…";
+  // Compact "mentioned tickers" row — the $cashtags in this post, each linking
+  // to its per-symbol stream. Derived from the full body (not the clipped one).
+  const tickers = React.useMemo(() => extractCashtags(post.body), [post.body]);
 
   return (
     <article className="rounded-xl border bg-surface p-4 transition-colors hover:border-border/80">
@@ -343,6 +369,16 @@ export function PostCard({
 
       {post.tradeCard && <TradeCardView card={post.tradeCard} />}
 
+      {/* Embedded original when this post reshares/quotes another. A null
+          `quoted` (author blocked) renders nothing; an unavailable original
+          renders a placeholder card. */}
+      {!editing && post.quoted && <QuotedPostCard quoted={post.quoted} />}
+
+      {/* Rich link preview for the FIRST link in the body. Skipped when the
+          post already has its own chart images (those take visual priority)
+          or while editing. Fetched lazily — only when a link is present. */}
+      {!editing && post.images.length === 0 && <PostUnfurl postId={post.id} body={post.body} />}
+
       {post.images.length > 0 && (
         <div className={cn("mt-3 grid gap-2", post.images.length > 1 && "grid-cols-2")}>
           {post.images.map((src, i) => (
@@ -354,6 +390,20 @@ export function PostCard({
               className="w-full rounded-lg border"
               loading="lazy"
             />
+          ))}
+        </div>
+      )}
+
+      {!editing && tickers.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-label="Mentioned tickers">
+          {tickers.map((s) => (
+            <Link
+              key={s}
+              href={`/community/s/${encodeURIComponent(s)}`}
+              className="rounded-md bg-accent/10 px-2 py-0.5 font-money text-[11px] font-medium text-accent hover:bg-accent/20"
+            >
+              ${s}
+            </Link>
           ))}
         </div>
       )}
@@ -402,10 +452,29 @@ export function PostCard({
         >
           <Bookmark className={cn("h-4 w-4", post.bookmarkedByMe && "fill-current")} aria-hidden />
         </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label={`Reshare post${post.reshareCount > 0 ? ` (${post.reshareCount})` : ""}`}
+            className="ml-auto flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground data-[state=open]:text-accent"
+          >
+            <Repeat2 className="h-4 w-4" aria-hidden />
+            {post.reshareCount > 0 && (
+              <span className="font-money">{formatCount(post.reshareCount)}</span>
+            )}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={doReshare}>
+              <Repeat2 /> Reshare
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setQuoteOpen(true)}>
+              <Pencil /> Quote
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <button
           aria-label="Share post"
           onClick={share}
-          className="ml-auto flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+          className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
         >
           <Share2 className="h-4 w-4" aria-hidden />
           {post.shareCount > 0 && (
@@ -428,6 +497,25 @@ export function PostCard({
         targetType="post"
         targetId={post.id}
       />
+      <QuoteDialog
+        post={post}
+        open={quoteOpen}
+        onOpenChange={setQuoteOpen}
+        onUnauthorized={onUnauthorized}
+      />
     </article>
   );
+}
+
+/**
+ * Lazily fetches and renders the unfurl card for the first link in `body`.
+ * Calling `useUnfurl` with `enabled` false (no link) means the network is never
+ * touched for a linkless post. Renders nothing until/unless the server returns
+ * a usable preview — a missing or unsafe link simply shows no card.
+ */
+function PostUnfurl({ postId, body }: { postId: string; body: string }) {
+  const hasLink = extractFirstLink(body) !== null;
+  const { data } = useUnfurl(postId, hasLink);
+  if (!hasLink || !data?.unfurl) return null;
+  return <UnfurlCard unfurl={data.unfurl} />;
 }

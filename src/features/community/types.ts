@@ -26,6 +26,25 @@ export interface AuthorView {
   avatar?: string | null;
 }
 
+/**
+ * The original post embedded inside a reshare/quote, rendered as a nested card.
+ * A trimmed projection (no images, snippet body) — enough to preview and link
+ * to the original. `unavailable` is true when the original was deleted (render a
+ * "post unavailable" placeholder); a block-hidden original is omitted entirely
+ * (the embedding reshare carries `quoted: null`).
+ */
+export interface QuotedPostView {
+  id: string;
+  title: string | null;
+  /** Pre-trimmed snippet of the original body (never the full text). */
+  body: string;
+  tradeCard: TradeCard | null;
+  createdAt: string;
+  author: AuthorView;
+  /** True when the original has been deleted — render a placeholder, not a link. */
+  unavailable: boolean;
+}
+
 export interface PostView {
   id: string;
   title: string | null;
@@ -39,6 +58,16 @@ export interface PostView {
   reactionCounts: ReactionCounts;
   commentCount: number;
   shareCount: number;
+  /** Times this post has been reshared/quoted (denormalized counter). */
+  reshareCount: number;
+  /** Set when this post is itself a reshare/quote — points at the ROOT original. */
+  quotePostId: string | null;
+  /**
+   * The embedded original when this post is a reshare/quote. `undefined` for a
+   * normal post; an object (possibly `unavailable`) when it reshares something;
+   * `null` when the original is hidden from the viewer (e.g. author blocked).
+   */
+  quoted?: QuotedPostView | null;
   createdAt: string;
   /** Set when the author has edited the post (drives the "Edited" marker); null otherwise. */
   editedAt: string | null;
@@ -139,7 +168,7 @@ export interface LeaderboardRow {
 
 export interface NotificationView {
   id: string;
-  type: "like" | "comment" | "reply" | "follow" | "mention";
+  type: "like" | "comment" | "reply" | "follow" | "mention" | "reshare";
   actor: AuthorView;
   postId: string | null;
   read: boolean;

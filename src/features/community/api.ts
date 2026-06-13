@@ -24,6 +24,7 @@ import type {
 } from "./types";
 import { SEARCH_MIN_CHARS } from "./search";
 import { applyReaction, totalReactions, type ReactionKind } from "./reactions";
+import type { LinkUnfurl } from "./unfurl";
 import type { CreatePostInput, EditPostInput, UpdateProfileInput } from "./schemas";
 import type { PostEditSnapshot } from "./edit-window";
 
@@ -54,17 +55,18 @@ export function useFeed(
   tag: string | null,
   search: string | null = null,
   scope: FeedScope = "all",
-  initialFeed: FeedResponse | null = null
+  initialFeed: FeedResponse | null = null,
+  symbol: string | null = null
 ) {
   return useInfiniteQuery({
-    queryKey: ["community-feed", sort, tag, search, scope],
+    queryKey: ["community-feed", sort, tag, search, scope, symbol],
     queryFn: ({ pageParam }) =>
       request<FeedResponse>(
         `/api/community/posts?sort=${sort}${tag ? `&tag=${encodeURIComponent(tag)}` : ""}${
           search ? `&q=${encodeURIComponent(search)}` : ""
-        }${scope !== "all" ? `&scope=${scope}` : ""}${
-          pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ""
-        }`
+        }${symbol ? `&symbol=${encodeURIComponent(symbol)}` : ""}${
+          scope !== "all" ? `&scope=${scope}` : ""
+        }${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ""}`
       ),
     initialPageParam: "",
     getNextPageParam: (last) => last.nextCursor ?? undefined,
@@ -143,6 +145,25 @@ export function useTagAutocomplete(q: string, enabled: boolean) {
   });
 }
 
+/**
+ * Lazy link-preview for a post. The server resolves the FIRST link in the
+ * post body and returns its cached/fetched OG unfurl (or null). Fired only when
+ * `enabled` (the post body actually contains a link) so a linkless feed never
+ * touches the network. Cached for an hour client-side — the card is stable.
+ */
+export function useUnfurl(postId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["community-unfurl", postId],
+    queryFn: () =>
+      request<{ unfurl: LinkUnfurl | null }>(
+        `/api/community/unfurl?postId=${encodeURIComponent(postId)}`
+      ),
+    enabled,
+    staleTime: 60 * 60_000,
+    retry: false,
+  });
+}
+
 export function useTrendingTags() {
   return useQuery({
     queryKey: ["community-trending-tags"],
@@ -175,6 +196,42 @@ export function useCreatePost() {
         body: JSON.stringify(input),
       }),
     onSuccess: () => invalidatePostLists(qc),
+  });
+}
+
+/**
+ * Reshare (empty body) or quote (with commentary) a post. Optimistically bumps
+ * the ORIGINAL post's reshareCount in every cached copy, then rolls back on
+ * error. The new reshare itself appears after the feed lists invalidate.
+ */
+export function useReshare() {
+  const qc = useQueryClient();
+  const bump = (rootId: string, delta: number) => {
+    const patch = (post: PostView): PostView =>
+      post.id === rootId ? { ...post, reshareCount: Math.max(0, post.reshareCount + delta) } : post;
+    qc.setQueriesData<InfiniteData<FeedResponse>>({ queryKey: ["community-feed"] }, (data) =>
+      data ? { ...data, pages: data.pages.map((p) => ({ ...p, posts: p.posts.map(patch) })) } : data
+    );
+    qc.setQueryData<PostDetailResponse>(["community-post", rootId], (data) =>
+      data ? { ...data, post: patch(data.post) } : data
+    );
+  };
+  return useMutation({
+    mutationFn: ({ targetId, body }: { targetId: string; body?: string }) =>
+      request<{ id: string; rootId: string; quote: boolean }>(
+        `/api/community/posts/${targetId}/reshare`,
+        { method: "POST", body: JSON.stringify(body ? { body } : {}) }
+      ),
+    // We optimistically bump the TARGET id; the server may collapse to a root,
+    // but at feed scale the target usually IS the root, and onSettled reconciles.
+    onMutate: ({ targetId }) => {
+      bump(targetId, 1);
+      return { targetId };
+    },
+    onError: (_e, _vars, ctx) => {
+      if (ctx) bump(ctx.targetId, -1);
+    },
+    onSettled: () => invalidatePostLists(qc),
   });
 }
 

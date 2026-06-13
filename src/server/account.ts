@@ -23,8 +23,22 @@ export async function purgeUserContent(userId: string) {
   );
   await platformDb.run(sql`DELETE FROM comment_likes WHERE user_id = ${userId}`);
 
+  // Reshares the user made: decrement each referenced original's reshare tally
+  // before their posts go, so the counters stay honest (skip originals the user
+  // also authored — those rows are about to be deleted anyway).
+  await platformDb.run(
+    sql`UPDATE posts SET reshare_count = MAX(0, reshare_count - 1)
+        WHERE id IN (
+          SELECT quote_post_id FROM posts
+          WHERE user_id = ${userId} AND quote_post_id IS NOT NULL
+        ) AND user_id != ${userId}`
+  );
+
   // Their posts, with everything hanging off them (comments by anyone, likes,
-  // bookmarks, images).
+  // bookmarks, images, $cashtag joins).
+  await platformDb.run(
+    sql`DELETE FROM post_symbols WHERE post_id IN (SELECT id FROM posts WHERE user_id = ${userId})`
+  );
   await platformDb.run(
     sql`DELETE FROM comment_likes WHERE comment_id IN (
           SELECT id FROM comments WHERE post_id IN (SELECT id FROM posts WHERE user_id = ${userId}))`
