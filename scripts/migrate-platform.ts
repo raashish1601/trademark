@@ -253,6 +253,13 @@ async function main() {
     // Existing rows keep NULL = legacy plain "like"; likeCount stays the TOTAL.
     `ALTER TABLE likes ADD COLUMN reaction TEXT`,
     `ALTER TABLE posts ADD COLUMN reactions TEXT`,
+    // ── Edit window + immutable history: when last edited, and an append-only
+    // JSON array of pre-edit snapshots. NULL edited_at = never edited; the
+    // history can only ever grow (no edit deletes/rewrites a prior snapshot). ──
+    `ALTER TABLE posts ADD COLUMN edited_at TEXT`,
+    `ALTER TABLE posts ADD COLUMN edit_history TEXT`,
+    `ALTER TABLE comments ADD COLUMN edited_at TEXT`,
+    `ALTER TABLE comments ADD COLUMN edit_history TEXT`,
   ];
   for (const sql of ALTERS) {
     try {
