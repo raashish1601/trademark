@@ -46,6 +46,7 @@ import { CommunityAvatar } from "./avatar";
 import { UnfurlCard } from "./unfurl-card";
 import { TradeCardView } from "./trade-card-view";
 import { RichText } from "./rich-text";
+import { extractCashtags } from "../cashtags";
 import { SignInGate } from "./sign-in-gate";
 import { ReportDialog } from "./report-dialog";
 import { ReactionPicker } from "./reaction-picker";
@@ -169,6 +170,9 @@ export function PostCard({
 
   const longBody = post.body.length > 420;
   const body = expanded || !longBody ? post.body : post.body.slice(0, 400).trimEnd() + "…";
+  // Compact "mentioned tickers" row — the $cashtags in this post, each linking
+  // to its per-symbol stream. Derived from the full body (not the clipped one).
+  const tickers = React.useMemo(() => extractCashtags(post.body), [post.body]);
 
   return (
     <article className="rounded-xl border bg-surface p-4 transition-colors hover:border-border/80">
@@ -362,6 +366,20 @@ export function PostCard({
               className="w-full rounded-lg border"
               loading="lazy"
             />
+          ))}
+        </div>
+      )}
+
+      {!editing && tickers.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-label="Mentioned tickers">
+          {tickers.map((s) => (
+            <Link
+              key={s}
+              href={`/community/s/${encodeURIComponent(s)}`}
+              className="rounded-md bg-accent/10 px-2 py-0.5 font-money text-[11px] font-medium text-accent hover:bg-accent/20"
+            >
+              ${s}
+            </Link>
           ))}
         </div>
       )}
