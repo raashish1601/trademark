@@ -53,4 +53,4 @@
 - [x] 2026-06-12 — Advanced trade filters + saved views — PR #40
 - [x] 2026-06-13 — Share-as-image trade & report cards — consolidated to main (PR-less)
 - [x] 2026-06-13 — Goals & risk limits (guardrail banners + weekly goals widget) — consolidated to main (PR-less)
-- [x] 2026-06-13 — Indian tax & reporting pack (FY turnover/speculative split/charges/realised-P&L, CSV+Excel+print) — PR #PENDING
+- [x] 2026-06-13 — Indian tax & reporting pack (FY turnover/speculative split/charges/realised-P&L, CSV+Excel+print) — PR #46
