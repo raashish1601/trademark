@@ -112,6 +112,15 @@ export const posts = sqliteTable("posts", {
   reactions: text("reactions"),
   commentCount: integer("comment_count").notNull().default(0),
   shareCount: integer("share_count").notNull().default(0),
+  /** Number of times this post has been reshared/quoted (denormalized). */
+  reshareCount: integer("reshare_count").notNull().default(0),
+  /**
+   * When set, THIS post is a reshare/quote of the referenced post. A plain
+   * reshare has an empty body; a quote carries the resharer's commentary as its
+   * body. Always points at a ROOT original (reshares never nest — a reshare of a
+   * reshare collapses to the root). NULL = an ordinary post.
+   */
+  quotePostId: text("quote_post_id"),
   createdAt: text("created_at").notNull(),
   /** Set the first time the post is edited; null = never edited. */
   editedAt: text("edited_at"),

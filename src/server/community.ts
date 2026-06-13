@@ -5,6 +5,7 @@ import { newId } from "@/lib/id";
 import { auth } from "./auth";
 import { platformDb } from "./db/platform";
 import {
+  blocks,
   bookmarks,
   commentLikes,
   comments,
@@ -16,7 +17,7 @@ import {
   profiles,
   reports,
 } from "./db/platform-schema";
-import type { AuthorView, PostView, TradeCard } from "@/features/community/types";
+import type { AuthorView, PostView, QuotedPostView, TradeCard } from "@/features/community/types";
 import {
   applyDiversityCap,
   normalizeReaction,
@@ -25,12 +26,13 @@ import {
 } from "@/features/community/reactions";
 import { parseEditHistory, type PostEditSnapshot } from "@/features/community/edit-window";
 import { planSymbolSync } from "@/features/community/cashtags";
+import { normalizeQuoteBody, resolveReshareTarget } from "@/features/community/reshare";
 
 /** Creates a notification (no-op when acting on your own content). */
 export async function notify(input: {
   userId: string;
   actorId: string;
-  type: "like" | "comment" | "reply" | "follow" | "mention";
+  type: "like" | "comment" | "reply" | "follow" | "mention" | "reshare";
   postId?: string | null;
   commentId?: string | null;
 }) {
@@ -208,6 +210,8 @@ interface PostRow {
   reactions: string | null;
   commentCount: number;
   shareCount: number;
+  reshareCount: number;
+  quotePostId: string | null;
   createdAt: string;
   editedAt: string | null;
   editHistory: string | null;
@@ -222,11 +226,100 @@ const parseJson = <T>(s: string | null): T | null => {
   }
 };
 
+/** A short, snippet-only preview of an original embedded inside a reshare. */
+const QUOTE_SNIPPET_MAX = 280;
+
+/**
+ * Builds the embedded-original map for a page of posts. For every post that is a
+ * reshare (has a `quotePostId`), fetches the referenced original and projects a
+ * trimmed `QuotedPostView`. Block-aware: an original whose author the VIEWER has
+ * blocked is hidden (the reshare carries `quoted: null`); a deleted original
+ * yields an `unavailable` placeholder. One extra query per page at most.
+ */
+async function hydrateQuoted(
+  rows: PostRow[],
+  viewerId: string | null
+): Promise<Map<string, QuotedPostView | null>> {
+  const out = new Map<string, QuotedPostView | null>();
+  const quotedIds = [...new Set(rows.map((r) => r.quotePostId).filter((x): x is string => !!x))];
+  if (quotedIds.length === 0) return out;
+
+  const [originals, blockedRows] = await Promise.all([
+    platformDb
+      .select({
+        id: posts.id,
+        userId: posts.userId,
+        title: posts.title,
+        body: posts.body,
+        tradeCard: posts.tradeCard,
+        createdAt: posts.createdAt,
+      })
+      .from(posts)
+      .where(inArray(posts.id, quotedIds)),
+    viewerId
+      ? platformDb
+          .select({ blockedId: blocks.blockedId })
+          .from(blocks)
+          .where(eq(blocks.blockerId, viewerId))
+      : Promise.resolve([] as { blockedId: string }[]),
+  ]);
+  const blocked = new Set(blockedRows.map((b) => b.blockedId));
+
+  const origAuthorIds = [...new Set(originals.map((o) => o.userId))];
+  const origAuthors = origAuthorIds.length
+    ? await platformDb.select().from(profiles).where(inArray(profiles.userId, origAuthorIds))
+    : [];
+  const origAuthorMap = new Map<string, AuthorView>(
+    origAuthors.map((a) => [
+      a.userId,
+      { username: a.username, displayName: a.displayName, avatar: a.avatar },
+    ])
+  );
+  const originalById = new Map(originals.map((o) => [o.id, o]));
+
+  for (const id of quotedIds) {
+    const o = originalById.get(id);
+    if (!o) {
+      // The original was deleted — render a placeholder rather than dropping it.
+      out.set(id, {
+        id,
+        title: null,
+        body: "",
+        tradeCard: null,
+        createdAt: "",
+        author: { username: "deleted", displayName: "Deleted user" },
+        unavailable: true,
+      });
+      continue;
+    }
+    // Hide originals from authors the viewer has blocked (the reshare itself
+    // stays, but its embedded card is suppressed).
+    if (blocked.has(o.userId)) {
+      out.set(id, null);
+      continue;
+    }
+    const full = o.body;
+    const body =
+      full.length > QUOTE_SNIPPET_MAX ? full.slice(0, QUOTE_SNIPPET_MAX).trimEnd() + "…" : full;
+    out.set(id, {
+      id: o.id,
+      title: o.title,
+      body,
+      tradeCard: parseJson<TradeCard>(o.tradeCard),
+      createdAt: o.createdAt,
+      author: origAuthorMap.get(o.userId) ?? { username: "deleted", displayName: "Deleted user" },
+      unavailable: false,
+    });
+  }
+  return out;
+}
+
 /** Hydrates post rows into client views (authors, images, likedByMe) in 3 queries. */
 export async function hydratePosts(rows: PostRow[], viewerId: string | null): Promise<PostView[]> {
   if (rows.length === 0) return [];
   const postIds = rows.map((r) => r.id);
   const userIds = [...new Set(rows.map((r) => r.userId))];
+  const quotedMap = await hydrateQuoted(rows, viewerId);
 
   const [authors, images, myLikes, myBookmarks] = await Promise.all([
     platformDb.select().from(profiles).where(inArray(profiles.userId, userIds)),
@@ -280,6 +373,9 @@ export async function hydratePosts(rows: PostRow[], viewerId: string | null): Pr
       reactionCounts: resolveReactionCounts(r.reactions, r.likeCount),
       commentCount: r.commentCount,
       shareCount: r.shareCount,
+      reshareCount: r.reshareCount,
+      quotePostId: r.quotePostId,
+      quoted: r.quotePostId ? (quotedMap.get(r.quotePostId) ?? null) : undefined,
       createdAt: r.createdAt,
       editedAt: r.editedAt,
       editHistory: parseEditHistory<PostEditSnapshot>(r.editHistory),
@@ -420,6 +516,20 @@ export async function countPostsForSymbol(symbol: string): Promise<number> {
  */
 export async function deletePostCascade(postId: string) {
   await platformDb.transaction(async (tx) => {
+    // If this post is itself a reshare, decrement the ORIGINAL's reshare tally so
+    // the count stays honest when a reshare is removed.
+    const self = await tx
+      .select({ quotePostId: posts.quotePostId })
+      .from(posts)
+      .where(eq(posts.id, postId))
+      .get();
+    if (self?.quotePostId) {
+      await tx
+        .update(posts)
+        .set({ reshareCount: sql`MAX(0, ${posts.reshareCount} - 1)` })
+        .where(eq(posts.id, self.quotePostId));
+    }
+
     // Comment ids on this post — needed to purge their likes and reports too.
     const commentRows = await tx
       .select({ id: comments.id })
@@ -446,4 +556,99 @@ export async function deletePostCascade(postId: string) {
     await tx.update(profiles).set({ pinnedPostId: null }).where(eq(profiles.pinnedPostId, postId));
     await tx.delete(posts).where(eq(posts.id, postId));
   });
+}
+
+interface CreateReshareResult {
+  /** The new reshare/quote post's id. */
+  id: string;
+  /** The root original it references (after collapsing any reshare-of-reshare). */
+  rootId: string;
+  /** True when the resharer added commentary (a quote), false for a plain reshare. */
+  quote: boolean;
+}
+
+/**
+ * Creates a reshare (empty body) or quote (with commentary) of `targetId`.
+ *
+ * Rules enforced here:
+ *  - The target must exist and be visible to the resharer (block-aware BOTH ways:
+ *    a target whose author blocked the resharer, or whom the resharer blocked, is
+ *    treated as not found).
+ *  - Resharing your OWN post is allowed.
+ *  - A reshare-of-a-reshare collapses to the ROOT original (no nesting chains).
+ *  - Increments the ROOT original's `reshareCount` and notifies its author.
+ *
+ * Reuses the same post row shape as createPost; the new row carries
+ * `quotePostId` set and the (trimmed) commentary as its body.
+ *
+ * @returns the new post id + the root original id, or null when the target is
+ *          missing / not visible.
+ */
+export async function createReshare(
+  resharerId: string,
+  targetId: string,
+  rawBody: string | null | undefined
+): Promise<CreateReshareResult | null> {
+  const target = await platformDb
+    .select({ id: posts.id, userId: posts.userId, quotePostId: posts.quotePostId })
+    .from(posts)
+    .where(eq(posts.id, targetId))
+    .get();
+  if (!target) return null;
+
+  // Block-aware BOTH directions: hide the target if either side has blocked the
+  // other (mirrors the feed's one-way block, applied symmetrically for safety).
+  if (resharerId !== target.userId) {
+    const block = await platformDb
+      .select({ blockerId: blocks.blockerId })
+      .from(blocks)
+      .where(
+        sql`(${blocks.blockerId} = ${resharerId} AND ${blocks.blockedId} = ${target.userId})
+            OR (${blocks.blockerId} = ${target.userId} AND ${blocks.blockedId} = ${resharerId})`
+      )
+      .get();
+    if (block) return null;
+  }
+
+  // Collapse a reshare-of-a-reshare to the root original so chains never form.
+  const rootId = resolveReshareTarget(target.id, target.quotePostId);
+  // The root must still exist (the immediate target might reference a deleted
+  // original); if it's gone we can't attribute the reshare, so refuse.
+  let rootAuthorId = target.userId;
+  if (rootId !== target.id) {
+    const root = await platformDb
+      .select({ id: posts.id, userId: posts.userId })
+      .from(posts)
+      .where(eq(posts.id, rootId))
+      .get();
+    if (!root) return null;
+    rootAuthorId = root.userId;
+  }
+
+  const body = normalizeQuoteBody(rawBody);
+  const id = newId();
+  const now = new Date().toISOString();
+  await platformDb.insert(posts).values({
+    id,
+    userId: resharerId,
+    title: null,
+    body,
+    quotePostId: rootId,
+    createdAt: now,
+  });
+  // Bump the root original's denormalized reshare tally.
+  await platformDb
+    .update(posts)
+    .set({ reshareCount: sql`${posts.reshareCount} + 1` })
+    .where(eq(posts.id, rootId));
+
+  // A quote's commentary can itself mention people / tag tickers.
+  if (body) {
+    await notifyMentions(body, resharerId, id);
+    await syncPostSymbols(id, body);
+  }
+  // Notify the ROOT author (no-op when resharing your own post).
+  await notify({ userId: rootAuthorId, actorId: resharerId, type: "reshare", postId: rootId });
+
+  return { id, rootId, quote: body.length > 0 };
 }

@@ -12,6 +12,7 @@ import {
   Pencil,
   Pin,
   PinOff,
+  Repeat2,
   Share2,
   Trash2,
   UserCheck,
@@ -33,6 +34,7 @@ import {
   useFollowAuthor,
   usePinPost,
   useRecordShare,
+  useReshare,
   useToggleBlock,
   useToggleBookmark,
   useToggleLike,
@@ -45,6 +47,8 @@ import type { ReactionKind } from "../reactions";
 import { CommunityAvatar } from "./avatar";
 import { UnfurlCard } from "./unfurl-card";
 import { TradeCardView } from "./trade-card-view";
+import { QuotedPostCard } from "./quoted-post-card";
+import { QuoteDialog } from "./quote-dialog";
 import { RichText } from "./rich-text";
 import { extractCashtags } from "../cashtags";
 import { SignInGate } from "./sign-in-gate";
@@ -72,12 +76,14 @@ export function PostCard({
   const toggleBookmark = useToggleBookmark();
   const toggleBlock = useToggleBlock(post.author.username);
   const recordShare = useRecordShare();
+  const reshare = useReshare();
   const followAuthor = useFollowAuthor(post.id, post.author.username);
   const pinPost = usePinPost();
   const deletePost = useDeletePost();
   const confirmDialog = useConfirm();
   const [gateOpen, setGateOpen] = React.useState(false);
   const [reportOpen, setReportOpen] = React.useState(false);
+  const [quoteOpen, setQuoteOpen] = React.useState(false);
   const [expanded, setExpanded] = React.useState(detail);
   const [editing, setEditing] = React.useState(false);
   const pendingAction = React.useRef<(() => void) | null>(null);
@@ -127,6 +133,19 @@ export function PostCard({
           ? onUnauthorized(follow)
           : toast.error("Could not follow"),
     });
+
+  // Instant plain reshare (no commentary). 401 → sign-in gate → retry.
+  const doReshare = () =>
+    reshare.mutate(
+      { targetId: post.id },
+      {
+        onSuccess: () => toast.success("Reshared to your followers"),
+        onError: (e) =>
+          e instanceof ApiError && e.status === 401
+            ? onUnauthorized(doReshare)
+            : toast.error(e instanceof Error ? e.message : "Could not reshare"),
+      }
+    );
 
   const handlePin = () =>
     pinPost.mutate(post.id, {
@@ -350,6 +369,11 @@ export function PostCard({
 
       {post.tradeCard && <TradeCardView card={post.tradeCard} />}
 
+      {/* Embedded original when this post reshares/quotes another. A null
+          `quoted` (author blocked) renders nothing; an unavailable original
+          renders a placeholder card. */}
+      {!editing && post.quoted && <QuotedPostCard quoted={post.quoted} />}
+
       {/* Rich link preview for the FIRST link in the body. Skipped when the
           post already has its own chart images (those take visual priority)
           or while editing. Fetched lazily — only when a link is present. */}
@@ -428,10 +452,29 @@ export function PostCard({
         >
           <Bookmark className={cn("h-4 w-4", post.bookmarkedByMe && "fill-current")} aria-hidden />
         </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label={`Reshare post${post.reshareCount > 0 ? ` (${post.reshareCount})` : ""}`}
+            className="ml-auto flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground data-[state=open]:text-accent"
+          >
+            <Repeat2 className="h-4 w-4" aria-hidden />
+            {post.reshareCount > 0 && (
+              <span className="font-money">{formatCount(post.reshareCount)}</span>
+            )}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={doReshare}>
+              <Repeat2 /> Reshare
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setQuoteOpen(true)}>
+              <Pencil /> Quote
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <button
           aria-label="Share post"
           onClick={share}
-          className="ml-auto flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+          className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
         >
           <Share2 className="h-4 w-4" aria-hidden />
           {post.shareCount > 0 && (
@@ -453,6 +496,12 @@ export function PostCard({
         onOpenChange={setReportOpen}
         targetType="post"
         targetId={post.id}
+      />
+      <QuoteDialog
+        post={post}
+        open={quoteOpen}
+        onOpenChange={setQuoteOpen}
+        onUnauthorized={onUnauthorized}
       />
     </article>
   );

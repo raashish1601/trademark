@@ -65,6 +65,26 @@ await step("per-symbol stream renders with the not-advice banner", async () => {
   await page.locator("[data-not-advice]").first().waitFor({ timeout: 15000 });
 });
 
+await step("community feed renders; post cards expose the reshare control", async () => {
+  await page.goto(`${BASE}/community`, { waitUntil: "domcontentloaded" });
+  // Wait for either at least one post card or the empty state to settle.
+  await page
+    .locator("article, [data-empty-state]")
+    .first()
+    .waitFor({ timeout: 30000 })
+    .catch(() => {});
+  const cards = await page.locator("article").count();
+  // When the feed has posts, every card must carry a Reshare control (the action
+  // gates sign-in on click, so rendering it signed-out is correct). An empty feed
+  // is a valid state on a fresh e2e DB — nothing to assert there.
+  if (cards > 0) {
+    await page
+      .getByRole("button", { name: /Reshare post/ })
+      .first()
+      .waitFor({ timeout: 10000 });
+  }
+});
+
 console.log("— Demo onboarding —");
 await step("onboarding renders 3 mode cards", async () => {
   await page.goto(`${BASE}/app/onboarding`, { waitUntil: "networkidle" });
