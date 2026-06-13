@@ -76,16 +76,16 @@ const panel = await ctx.newPage();
 
 await step("panel loads and opens settings", async () => {
   await panel.goto(`chrome-extension://${EXT_ID}/sidepanel.html`, { waitUntil: "load" });
-  await panel.getByText("TradeMark").first().waitFor({ timeout: 15000 });
+  await panel.getByText("TradeMarkk").first().waitFor({ timeout: 15000 });
   // The very first page of a freshly installed extension occasionally stalls
   // (SW still wiring surfaces) — one reload recovers it.
   try {
     await panel.getByRole("button", { name: "Settings" }).click({ timeout: 10000 });
-    await panel.getByLabel("TradeMark app URL").waitFor({ timeout: 5000 });
+    await panel.getByLabel("TradeMarkk app URL").waitFor({ timeout: 5000 });
   } catch {
     await panel.reload({ waitUntil: "load" });
     await panel.getByRole("button", { name: "Settings" }).click({ timeout: 10000 });
-    await panel.getByLabel("TradeMark app URL").waitFor({ timeout: 5000 });
+    await panel.getByLabel("TradeMarkk app URL").waitFor({ timeout: 5000 });
   }
 });
 
@@ -98,14 +98,14 @@ await step("app URL override saves (self-hoster flow)", async () => {
   for (let i = 0; i < 3 && !saved; i++) {
     if (
       !(await panel
-        .getByLabel("TradeMark app URL")
+        .getByLabel("TradeMarkk app URL")
         .isVisible()
         .catch(() => false))
     ) {
       await panel.getByRole("button", { name: "Settings" }).click();
-      await panel.getByLabel("TradeMark app URL").waitFor({ timeout: 5000 });
+      await panel.getByLabel("TradeMarkk app URL").waitFor({ timeout: 5000 });
     }
-    await panel.getByLabel("TradeMark app URL").fill(BASE);
+    await panel.getByLabel("TradeMarkk app URL").fill(BASE);
     await panel.getByRole("button", { name: "Save URL" }).click();
     saved = await panel
       .waitForFunction(
@@ -127,13 +127,13 @@ await step("app URL override saves (self-hoster flow)", async () => {
   if (!saved) throw new Error("app URL was never persisted to chrome.storage.local");
   // Reboot the panel so it deterministically points at BASE before sign-in.
   await panel.reload({ waitUntil: "load" });
-  await panel.getByText("Sign in to TradeMark").first().waitFor({ timeout: 15000 });
+  await panel.getByText("Sign in to TradeMarkk").first().waitFor({ timeout: 15000 });
 });
 
 let appTab;
 await step("sign-in button opens an app tab on onboarding", async () => {
   const tabPromise = ctx.waitForEvent("page", { timeout: 10000 });
-  await panel.getByRole("button", { name: "Sign in to TradeMark" }).click();
+  await panel.getByRole("button", { name: "Sign in to TradeMarkk" }).click();
   appTab = await tabPromise;
   // Exact-origin assertion: the suite must never silently sign up on prod.
   await appTab.waitForURL(`${BASE}/app/onboarding`, { timeout: 20000 });
@@ -272,7 +272,7 @@ await step("capture: affordance appears on the Kite order window", async () => {
   const btn = kitePage.locator("[data-tm-capture]");
   await btn.waitFor({ timeout: 5000 });
   const label = await btn.textContent();
-  if (!label.includes("Log in TradeMark")) throw new Error(`wrong label: ${label}`);
+  if (!label.includes("Log in TradeMarkk")) throw new Error(`wrong label: ${label}`);
   // Captures are version-tagged so adapter breakage is detectable in reports.
   if ((await btn.getAttribute("data-tm-capture")) !== "1")
     throw new Error("missing adapter version tag");
@@ -386,7 +386,8 @@ await step("import: preview shows new trades and hides dedupe", async () => {
   const summary = await panel.locator(".import-summary").first().textContent();
   if (!/2\s*new/.test(summary)) throw new Error(`expected 2 new trades, got: ${summary}`);
   const rows = panel.locator(".import-row");
-  if ((await rows.count()) !== 2) throw new Error(`expected 2 preview rows, got ${await rows.count()}`);
+  if ((await rows.count()) !== 2)
+    throw new Error(`expected 2 preview rows, got ${await rows.count()}`);
   // The skipped rejected SBIN row never reaches the preview.
   if ((await panel.locator(".import-row", { hasText: "SBIN" }).count()) !== 0)
     throw new Error("rejected SBIN order leaked into the preview");
@@ -448,7 +449,7 @@ await step("panel sign-out returns to the signed-out state", async () => {
   await panel.bringToFront();
   await panel.getByRole("button", { name: "Settings" }).click();
   await panel.getByRole("button", { name: "Sign out" }).click();
-  await panel.getByText("Sign in to TradeMark").first().waitFor({ timeout: 20000 });
+  await panel.getByText("Sign in to TradeMarkk").first().waitFor({ timeout: 20000 });
 });
 
 // ── Cleanup: delete the account (also deletes the provisioned Turso DB) ───

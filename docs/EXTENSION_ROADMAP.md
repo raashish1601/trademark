@@ -1,4 +1,4 @@
-# TradeMark Chrome Extension — Roadmap
+# TradeMarkk Chrome Extension — Roadmap
 
 > Log trades and tick your daily rules **without leaving your broker's web page**
 > (Zerodha Kite, Upstox, Groww, Dhan, Fyers). The extension is a thin companion
@@ -8,7 +8,7 @@
 
 The moment a trade closes is the moment journaling honesty peaks — and the
 moment most traders are furthest from their journal. The extension puts a
-TradeMark side panel directly beside the broker tab so logging a trade takes
+TradeMarkk side panel directly beside the broker tab so logging a trade takes
 under ten seconds and the day's rules stay in view all session. Everything the
 extension writes lands in the user's own journal database, byte-identical to a
 trade logged from the web app.
@@ -128,7 +128,7 @@ trade logged from the web app.
 
 ### Capture hand-off: content script → SW → side panel
 
-- The injected "Log in TradeMark" pill (inline styles, no stylesheet leakage
+- The injected "Log in TradeMarkk" pill (inline styles, no stylesheet leakage
   into the broker page) reads the order fields on click and
   `chrome.runtime.sendMessage`s them. The SW stages the capture in
   `chrome.storage.session` (5-minute TTL — stale context is dropped) and
@@ -162,7 +162,7 @@ trade logged from the web app.
 
 - Side panel + runtime popup fallback sharing one UI; 320 px-min layouts;
   dark theme on app tokens, light via `prefers-color-scheme`.
-- Signed-out state → one-click "Sign in to TradeMark" (opens app tab, panel
+- Signed-out state → one-click "Sign in to TradeMarkk" (opens app tab, panel
   auto-detects the session by polling `/api/db/status`).
 - **Quick trade log** (hero, ≤10 s): instrument input with contract-name
   parsing (`BANKNIFTY24JUN52000CE`, `NIFTY 25 JUN 2026 24500 CALL`, Fyers
@@ -195,7 +195,7 @@ trade logged from the web app.
 - [ ] **Rules nudge badge** — `chrome.action.setBadgeText` shows unticked-rule count when the day has trades; chrome.alarms-driven refresh.
 - [ ] **Popup mode polish** (compact 320px) + Ctrl+Shift+J keyboard shortcut to open the panel.
 - [ ] **Chart screenshot capture** — `chrome.tabs.captureVisibleTab` -> attach via the existing AttachmentRow schema (no new DB columns).
-- [ ] **Pre-trade plan capture** — log symbol/side/qty/planned_entry/sl/target before entry, writing the planned_* fields that already exist in TradeRow (no migration); reconciliation lives in the journal discipline-v2 metric.
+- [ ] **Pre-trade plan capture** — log symbol/side/qty/planned*entry/sl/target before entry, writing the planned*\* fields that already exist in TradeRow (no migration); reconciliation lives in the journal discipline-v2 metric.
 - [ ] Executed-order toast capture on Kite — still deferred (transient toast DOM unverifiable without a live session; order-window + positions-import cover the high-value paths).
 
 ### v3 — distribution
@@ -211,5 +211,5 @@ trade logged from the web app.
 ## Shipped by the loop
 
 - 2026-06-12 — v1: side panel + popup fallback, cookie-session auth with pinned-ID origin allowlist, token-vended Turso writes via the shared statement builder, quick trade log with contract parsing, today's rules tri-state checklist, P&L + streak glance strip, settings, Playwright extension e2e. (PR #22)
-- 2026-06-12 — v2: Zerodha Kite order-window capture — opt-in per-broker content scripts, versioned adapter registry, "Log in TradeMark" pill, SW-staged captures, silent degradation, Kite fixtures + 6 e2e steps, 26 unit tests. (PR #37)
+- 2026-06-12 — v2: Zerodha Kite order-window capture — opt-in per-broker content scripts, versioned adapter registry, "Log in TradeMarkk" pill, SW-staged captures, silent degradation, Kite fixtures + 6 e2e steps, 26 unit tests. (PR #37)
 - 2026-06-13 — Positions/Tradebook auto-import (Kite first): versioned `kite-positions` adapter (pure `assembleFills` split from DOM collection; reads only executed-order fields; rejected/pending rows skipped; silent degradation on changed markup), `positions-import.ts` (reuses the CSV import's FIFO pairing — fills time-sorted first since Kite renders newest-first — + paise-correct charges + deterministic `stableId` so re-scraping the same tradebook dedupes idempotently and never re-writes already-journaled rows), `ImportModal` preview with new-vs-already-in-journal rows + per-row include/exclude + import progress/result, opt-in `chrome.scripting` registration behind the `kite.zerodha.com` optional host permission, panel-driven scrape (no `tabs` permission — discovers the broker tab by message round-trip), writes through the shared `save-statements.ts`. Committed `kite-tradebook.html` + changed-DOM fixtures; +33 unit tests; 7 new e2e steps (preview, dedupe-hides-existing, import-to-journal, idempotent re-import, silent degradation). (PR #TBD)
