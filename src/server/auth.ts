@@ -44,6 +44,16 @@ export const auth = betterAuth({
       maxAge: 60 * 5,
     },
   },
+  account: {
+    accountLinking: {
+      // Link a Google sign-in to an existing same-email account instead of
+      // erroring with ?error=account_not_linked. Safe: Google verifies email
+      // ownership, so a "Continue with Google" for an email that already has a
+      // password account resolves to the SAME user rather than a dead end.
+      enabled: true,
+      trustedProviders: ["google"],
+    },
+  },
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8, // matches the signup UI ("8+ characters")

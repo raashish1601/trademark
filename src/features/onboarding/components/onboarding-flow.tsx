@@ -3,17 +3,10 @@
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
-import {
-  ArrowLeft,
-  ArrowRight,
-  CandlestickChart,
-  Check,
-  Cloud,
-  Database,
-  PlayCircle,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Cloud, Database, Loader2, PlayCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useDbSession } from "@/providers/db-session-provider";
+import { getStoredMode } from "@/lib/db/byod-store";
 import { useSession } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/shared/logo";
@@ -61,28 +54,46 @@ export function OnboardingFlow() {
   const [step, setStep] = React.useState<Step>("choose");
   const [busy, setBusy] = React.useState<string | null>(null);
 
+  // A visitor with no previously chosen storage mode who lands here signed in is
+  // a brand-new signup (e.g. just returned from Google) — greet them warmly at
+  // the setup step. Returning users already have tm.mode persisted. The lazy
+  // initializer is client-only (localStorage is undefined during prerender);
+  // it runs once at mount so a mid-flow connectHosted() (which sets the mode)
+  // can't flip it.
+  const [isFreshArrival] = React.useState(
+    () => typeof window !== "undefined" && getStoredMode() === null
+  );
+
   const goDashboard = React.useCallback(() => router.replace("/app/dashboard"), [router]);
 
-  // Returning signed-in users with a provisioned DB skip the mode picker entirely.
+  // True once we've decided this visitor has a platform session and is heading
+  // into hosted storage (returning user OR a fresh Google/email signup) — we
+  // show a calm "setting up" state for them instead of ever flashing the picker.
   const [autoConnecting, setAutoConnecting] = React.useState(true);
   React.useEffect(() => {
     if (state.status !== "none") {
       setAutoConnecting(false);
       return;
     }
+    // No platform session → genuine fresh visitor (or BYOD/demo/local, which
+    // carry no session). Let them pick a storage mode.
+    if (!session) {
+      setAutoConnecting(false);
+      return;
+    }
+    // Any signed-in user who isn't connected yet → provision-or-connect their
+    // hosted DB and head straight to setup/dashboard. connectHosted() already
+    // provisions a brand-new user's DB (token → 404 → provision → retry), so a
+    // just-signed-up Google user never sees the mode picker again. We keep
+    // autoConnecting=true throughout so the picker can't flash; the ready-state
+    // effect below takes over once the DB is connected.
     let cancelled = false;
     (async () => {
       try {
-        if (!session) return;
-        const res = await fetch("/api/db/status");
-        const data = (await res.json()) as { provisioned?: boolean };
-        if (!cancelled && data.provisioned) {
-          await connectHosted();
-          return;
-        }
+        await connectHosted();
       } catch {
-        /* fall through to manual picker */
-      } finally {
+        // Provision genuinely failed (e.g. transient) — drop them onto the
+        // picker so they can retry the hosted card manually rather than hang.
         if (!cancelled) setAutoConnecting(false);
       }
     })();
@@ -127,10 +138,28 @@ export function OnboardingFlow() {
     }
   }, [startLocal]);
 
+  // Surface an OAuth error (e.g. Better Auth's ?error=account_not_linked) as a
+  // friendly toast and strip it from the URL, rather than silently dropping the
+  // user on the picker with a cryptic query string. Account linking is enabled
+  // for Google so this should be rare, but it's a clean fallback.
+  const searchParams = useSearchParams();
+  const authErrorShown = React.useRef(false);
+  React.useEffect(() => {
+    const err = searchParams.get("error");
+    if (!err || authErrorShown.current) return;
+    authErrorShown.current = true;
+    toast.error(
+      err === "account_not_linked"
+        ? "That email already has an account. Sign in with your password, then link Google from settings."
+        : "Sign-in didn't complete. Please try again."
+    );
+    router.replace("/app/onboarding");
+  }, [searchParams, router]);
+
   // Landing-page "Try the live demo" deep link: /app/onboarding?mode=demo
   // starts the in-browser journal immediately (new visitors only — anyone
   // with a session or an existing journal keeps the normal flow).
-  const wantDemo = useSearchParams().get("mode") === "demo";
+  const wantDemo = searchParams.get("mode") === "demo";
   const demoStarted = React.useRef(false);
   React.useEffect(() => {
     if (!wantDemo || demoStarted.current || session || state.status !== "none") return;
@@ -143,15 +172,37 @@ export function OnboardingFlow() {
     else setStep(key);
   };
 
-  // While we check a returning user's session, show a quiet connecting state
-  // instead of flashing the full mode picker.
+  // While we provision-or-connect a signed-in user's hosted DB, show a calm
+  // full-screen "setting up" state instead of ever flashing the mode picker.
+  // Brand-new signups (e.g. just returned from Google) see a welcome message;
+  // returning users see "opening your journal".
   if (autoConnecting && session && step === "choose") {
     return (
-      <div className="flex min-h-dvh items-center justify-center">
-        <div className="flex items-center gap-2 text-muted">
-          <CandlestickChart className="h-5 w-5 animate-pulse text-accent" aria-hidden />
-          <span className="text-sm">Welcome back — opening your journal…</span>
-        </div>
+      <div
+        role="status"
+        aria-live="polite"
+        className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-6 text-center"
+      >
+        <div className="hero-glow absolute inset-0" aria-hidden />
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative flex flex-col items-center gap-4"
+        >
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent/12 text-accent">
+            <Loader2 className="h-6 w-6 animate-spin" aria-hidden />
+          </span>
+          <div className="space-y-1">
+            <p className="text-base font-semibold">
+              {isFreshArrival ? "Setting up your journal…" : "Opening your journal…"}
+            </p>
+            <p className="text-sm text-muted">
+              {isFreshArrival
+                ? "Creating your private, isolated database. This only takes a moment."
+                : "Welcome back — reconnecting your data."}
+            </p>
+          </div>
+        </motion.div>
       </div>
     );
   }
@@ -290,9 +341,13 @@ export function OnboardingFlow() {
               className="space-y-4"
             >
               <div>
-                <h2 className="text-xl font-bold">Set up your journal</h2>
+                <h2 className="text-xl font-bold">
+                  {isFreshArrival ? "You're in — set up your journal" : "Set up your journal"}
+                </h2>
                 <p className="mt-1 text-sm text-muted">
-                  30 seconds — you can change all of this later.
+                  {isFreshArrival
+                    ? "Last step: pick your broker and starting capital so charges and risk are spot-on. 30 seconds — change it all later."
+                    : "30 seconds — you can change all of this later."}
                 </p>
               </div>
               <SetupForm onDone={goDashboard} />
