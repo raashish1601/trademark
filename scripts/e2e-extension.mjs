@@ -237,6 +237,8 @@ const fixtureFor = (url) => {
   if (url?.startsWith("/upstox")) return "upstox-order-window.html";
   if (url?.startsWith("/groww-changed")) return "groww-order-window-changed.html";
   if (url?.startsWith("/groww")) return "groww-order-window.html";
+  if (url?.startsWith("/dhan-changed")) return "dhan-order-window-changed.html";
+  if (url?.startsWith("/dhan")) return "dhan-order-window.html";
   return "kite-order-window.html";
 };
 const fixtureServer = createServer((req, res) => {
@@ -578,10 +580,131 @@ await step("groww: changed order DOM degrades silently", async () => {
     throw new Error("capture button injected into an unrecognized DOM");
   await growwPage.close();
   // Unregister so the Groww script can't fire on the shared fixture origin
-  // during the positions-import steps below.
+  // during the Dhan + positions-import steps below.
   await panel.evaluate(async () => {
     await chrome.scripting
       .unregisterContentScripts({ ids: ["tm-capture-groww-e2e"] })
+      .catch(() => undefined);
+  });
+});
+
+// ── v2: Dhan order-window capture (registry-driven, fourth adapter) ───────
+// Same opt-in path as Kite/Upstox/Groww: the REAL built content-dhan.js bundle
+// is registered through chrome.scripting on the localhost fixture origin (real
+// Dhan sits behind a login). Dhan's web suite (Dhan Web / TradingView terminal
+// / Options Trader) is a React app with hashed/utility CSS classes, so the
+// adapter anchors on visible "Qty"/"Price" labels, the buy/sell class fragment
+// + "Buy …/Place sell order" copy + active side tab, and
+// [class*='tradingSymbol']/[class*='ltp'] substring matchers — the fixture
+// mirrors that hashed-class structure, and (Dhan being derivatives-heavy)
+// renders F&O contracts as COMPACT tradingsymbols ("NIFTY24AUG24000CE").
+let dhanPage;
+await step("dhan: content script registers on the fixture origin", async () => {
+  await panel.evaluate(async () => {
+    await chrome.scripting.registerContentScripts([
+      {
+        id: "tm-capture-dhan-e2e",
+        js: ["content-dhan.js"],
+        matches: ["http://localhost:3401/*"],
+        runAt: "document_idle",
+      },
+    ]);
+  });
+  const ids = await panel.evaluate(async () =>
+    (await chrome.scripting.getRegisteredContentScripts()).map((s) => s.id)
+  );
+  if (!ids.includes("tm-capture-dhan-e2e")) throw new Error(`registration missing: ${ids}`);
+});
+
+await step("dhan: affordance appears on the order window", async () => {
+  dhanPage = await ctx.newPage();
+  await dhanPage.goto(`http://localhost:${FIXTURE_PORT}/dhan`, { waitUntil: "load" });
+  await dhanPage.locator("[data-fixture-row='RELIANCE'] [data-fixture='buy']").click();
+  await dhanPage.locator("._orderWindow_6e3f1._buy_6e3f1").waitFor({ timeout: 5000 });
+  const btn = dhanPage.locator("[data-tm-capture]");
+  await btn.waitFor({ timeout: 5000 });
+  const label = await btn.textContent();
+  if (!label.includes("Log in TradeMarkk")) throw new Error(`wrong label: ${label}`);
+  if ((await btn.getAttribute("data-tm-capture")) !== "1")
+    throw new Error("missing adapter version tag");
+});
+
+await step("dhan: click prefills the quick log (buy, limit price)", async () => {
+  await dhanPage.locator("._orderWindow_6e3f1 ._field_6e3f1:has-text('Qty') input").fill("50");
+  await dhanPage
+    .locator("._orderWindow_6e3f1 ._field_6e3f1:has-text('Price') input")
+    .first()
+    .fill("2980.4");
+  await dhanPage.locator("[data-tm-capture]").click();
+  await panel.bringToFront();
+  await panel.getByTestId("capture-chip").waitFor({ timeout: 10000 });
+  const chip = await panel.getByTestId("capture-chip").textContent();
+  if (!chip.includes("Dhan")) throw new Error(`wrong capture source chip: ${chip}`);
+  const value = (label) => panel.getByLabel(label, { exact: true }).inputValue();
+  if ((await value("Instrument")) !== "RELIANCE") throw new Error("instrument not prefilled");
+  if ((await value("Qty")) !== "50") throw new Error("qty not prefilled");
+  if ((await value("Entry")) !== "2980.4") throw new Error("entry not prefilled");
+  const buyPressed = await panel
+    .getByRole("button", { name: "Buy", exact: true })
+    .getAttribute("aria-pressed");
+  if (buyPressed !== "true") throw new Error("buy side not selected");
+});
+
+await step("dhan: captured trade saves into the journal", async () => {
+  // RELIANCE was already imported via Upstox/Groww above — give this round-trip
+  // a distinct exit so the journal-row assertion keys off this Dhan trade.
+  await panel.getByLabel("Exit", { exact: true }).fill("3025.75");
+  await panel.getByLabel("Exit", { exact: true }).press("Enter");
+  await panel.getByText("RELIANCE logged").waitFor({ timeout: 30000 });
+  await appTab.bringToFront();
+  await appTab.goto(`${BASE}/app/trades`, { waitUntil: "networkidle" });
+  await appTab.locator("tr", { hasText: "RELIANCE" }).first().waitFor({ timeout: 30000 });
+});
+
+await step("dhan: sell market order → Sell side + last-price fallback", async () => {
+  await dhanPage.bringToFront();
+  await dhanPage.locator("[data-fixture-row='NIFTY24AUG24000CE'] [data-fixture='sell']").click();
+  await dhanPage.locator("._orderWindow_6e3f1._sell_6e3f1").waitFor({ timeout: 5000 });
+  await dhanPage.locator("._orderWindow_6e3f1 ._field_6e3f1:has-text('Qty') input").fill("75");
+  const btn = dhanPage.locator("[data-tm-capture]");
+  await btn.waitFor({ timeout: 5000 });
+  await btn.click();
+  await panel.bringToFront();
+  await panel.getByTestId("capture-chip").waitFor({ timeout: 10000 });
+  const value = (label) => panel.getByLabel(label, { exact: true }).inputValue();
+  // Dhan is derivatives-heavy and renders the compact tradingsymbol; the adapter
+  // forwards it verbatim and the panel's parser turns it into NIFTY 24000 CE.
+  if ((await value("Instrument")) !== "NIFTY24AUG24000CE")
+    throw new Error(`instrument not prefilled: ${await value("Instrument")}`);
+  if ((await value("Qty")) !== "75") throw new Error("qty not prefilled");
+  // The option row is a market order (price disabled at 0) — the adapter must
+  // fall back to the last traded price, never capture 0.
+  if ((await value("Entry")) !== "182.5")
+    throw new Error(`expected LTP fallback 182.5, got "${await value("Entry")}"`);
+  const sellPressed = await panel
+    .getByRole("button", { name: "Sell", exact: true })
+    .getAttribute("aria-pressed");
+  if (sellPressed !== "true") throw new Error("sell side not selected");
+  const parsed = await panel.getByTestId("parse-chip").textContent();
+  if (!parsed.includes("NIFTY") || !parsed.includes("24000") || !parsed.includes("CE"))
+    throw new Error(`captured option did not parse: ${parsed}`);
+  // Clear the staged capture so it doesn't bleed into later steps.
+  await panel.getByRole("button", { name: "Dismiss broker capture" }).click();
+});
+
+await step("dhan: changed order DOM degrades silently", async () => {
+  await dhanPage.goto(`http://localhost:${FIXTURE_PORT}/dhan-changed`, { waitUntil: "load" });
+  await dhanPage.locator("[data-fixture='open-changed']").click();
+  await dhanPage.locator("._ow2_91ce3").waitFor({ timeout: 5000 });
+  await dhanPage.waitForTimeout(1200); // > the content script's rescan debounce
+  if ((await dhanPage.locator("[data-tm-capture]").count()) !== 0)
+    throw new Error("capture button injected into an unrecognized DOM");
+  await dhanPage.close();
+  // Unregister so the Dhan script can't fire on the shared fixture origin
+  // during the positions-import steps below.
+  await panel.evaluate(async () => {
+    await chrome.scripting
+      .unregisterContentScripts({ ids: ["tm-capture-dhan-e2e"] })
       .catch(() => undefined);
   });
 });
