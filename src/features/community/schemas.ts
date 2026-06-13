@@ -34,6 +34,16 @@ export const createPostSchema = z.object({
   images: z.array(imageSchema).max(2).default([]),
 });
 
+/**
+ * Reshare / quote-post input. `targetId` is the post being reshared; `body` is
+ * optional commentary (empty = a plain reshare, non-empty = a quote). The server
+ * collapses a reshare-of-a-reshare to the root original and validates visibility.
+ */
+export const createReshareSchema = z.object({
+  targetId: z.string().min(1).max(40),
+  body: z.string().max(5000).optional(),
+});
+
 export const createCommentSchema = z.object({
   body: z.string().min(1, "Empty comment").max(2000),
   parentId: z.string().max(40).nullish(),
@@ -118,6 +128,7 @@ export const reportSchema = z.object({
 });
 
 export type CreatePostInput = z.infer<typeof createPostSchema>;
+export type CreateReshareInput = z.infer<typeof createReshareSchema>;
 export type CreateCommentInput = z.infer<typeof createCommentSchema>;
 export type EditPostInput = z.infer<typeof editPostSchema>;
 export type EditCommentInput = z.infer<typeof editCommentSchema>;

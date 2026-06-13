@@ -71,6 +71,7 @@ const VERBS: Record<NotificationView["type"], string> = {
   reply: "replied to your comment",
   follow: "followed you",
   mention: "mentioned you",
+  reshare: "reshared your post",
 };
 
 /** Action copy for a group — reads naturally for one actor or many. */

@@ -294,6 +294,11 @@ async function main() {
     `ALTER TABLE posts ADD COLUMN edit_history TEXT`,
     `ALTER TABLE comments ADD COLUMN edited_at TEXT`,
     `ALTER TABLE comments ADD COLUMN edit_history TEXT`,
+    // ── Quote post / reshare: a reshare is a NEW post whose quote_post_id points
+    // at the (root) original; reshare_count is the original's denormalized tally.
+    // Existing rows default to 0 / NULL — additive, idempotent. ──
+    `ALTER TABLE posts ADD COLUMN reshare_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE posts ADD COLUMN quote_post_id TEXT`,
     // ── Email-abuse hardening: durable per-account cooldown + daily caps ──
     // Counters reset inline when the stored timestamp's date != today (no cron).
     `ALTER TABLE user ADD COLUMN last_password_reset_email_at INTEGER`,

@@ -199,6 +199,42 @@ export function useCreatePost() {
   });
 }
 
+/**
+ * Reshare (empty body) or quote (with commentary) a post. Optimistically bumps
+ * the ORIGINAL post's reshareCount in every cached copy, then rolls back on
+ * error. The new reshare itself appears after the feed lists invalidate.
+ */
+export function useReshare() {
+  const qc = useQueryClient();
+  const bump = (rootId: string, delta: number) => {
+    const patch = (post: PostView): PostView =>
+      post.id === rootId ? { ...post, reshareCount: Math.max(0, post.reshareCount + delta) } : post;
+    qc.setQueriesData<InfiniteData<FeedResponse>>({ queryKey: ["community-feed"] }, (data) =>
+      data ? { ...data, pages: data.pages.map((p) => ({ ...p, posts: p.posts.map(patch) })) } : data
+    );
+    qc.setQueryData<PostDetailResponse>(["community-post", rootId], (data) =>
+      data ? { ...data, post: patch(data.post) } : data
+    );
+  };
+  return useMutation({
+    mutationFn: ({ targetId, body }: { targetId: string; body?: string }) =>
+      request<{ id: string; rootId: string; quote: boolean }>(
+        `/api/community/posts/${targetId}/reshare`,
+        { method: "POST", body: JSON.stringify(body ? { body } : {}) }
+      ),
+    // We optimistically bump the TARGET id; the server may collapse to a root,
+    // but at feed scale the target usually IS the root, and onSettled reconciles.
+    onMutate: ({ targetId }) => {
+      bump(targetId, 1);
+      return { targetId };
+    },
+    onError: (_e, _vars, ctx) => {
+      if (ctx) bump(ctx.targetId, -1);
+    },
+    onSettled: () => invalidatePostLists(qc),
+  });
+}
+
 export function useDeletePost() {
   const qc = useQueryClient();
   return useMutation({
