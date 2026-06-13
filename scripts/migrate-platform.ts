@@ -216,6 +216,15 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_posts_user ON posts (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_comments_post ON comments (post_id)`,
   `CREATE INDEX IF NOT EXISTS idx_post_images_post ON post_images (post_id)`,
+  // ── $cashtag → post join (per-symbol stream pages /community/s/[symbol]) ──
+  `CREATE TABLE IF NOT EXISTS post_symbols (
+    post_id TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (post_id, symbol)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_post_symbols_symbol ON post_symbols (symbol, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_post_symbols_post ON post_symbols (post_id)`,
   `CREATE INDEX IF NOT EXISTS idx_session_user ON session (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_session_token ON session (token)`,
   `CREATE INDEX IF NOT EXISTS idx_account_user ON account (user_id)`,

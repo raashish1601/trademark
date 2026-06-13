@@ -55,17 +55,18 @@ export function useFeed(
   tag: string | null,
   search: string | null = null,
   scope: FeedScope = "all",
-  initialFeed: FeedResponse | null = null
+  initialFeed: FeedResponse | null = null,
+  symbol: string | null = null
 ) {
   return useInfiniteQuery({
-    queryKey: ["community-feed", sort, tag, search, scope],
+    queryKey: ["community-feed", sort, tag, search, scope, symbol],
     queryFn: ({ pageParam }) =>
       request<FeedResponse>(
         `/api/community/posts?sort=${sort}${tag ? `&tag=${encodeURIComponent(tag)}` : ""}${
           search ? `&q=${encodeURIComponent(search)}` : ""
-        }${scope !== "all" ? `&scope=${scope}` : ""}${
-          pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ""
-        }`
+        }${symbol ? `&symbol=${encodeURIComponent(symbol)}` : ""}${
+          scope !== "all" ? `&scope=${scope}` : ""
+        }${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ""}`
       ),
     initialPageParam: "",
     getNextPageParam: (last) => last.nextCursor ?? undefined,

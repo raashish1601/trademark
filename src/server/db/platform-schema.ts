@@ -126,6 +126,22 @@ export const postImages = sqliteTable("post_images", {
   data: text("data").notNull(), // compressed webp data-url ≤ ~280KB
 });
 
+/**
+ * $cashtag -> post join. One row per (post, symbol) so a post surfaces on each
+ * tagged symbol's stream page (/community/s/[symbol]). Symbols are stored
+ * UPPERCASE (curated or free-entered). Indexed both ways: by symbol for the
+ * per-symbol stream query, by post for cheap re-sync on edit.
+ */
+export const postSymbols = sqliteTable(
+  "post_symbols",
+  {
+    postId: text("post_id").notNull(),
+    symbol: text("symbol").notNull(), // uppercase NSE/BSE ticker token
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.postId, t.symbol] })]
+);
+
 export const comments = sqliteTable("comments", {
   id: text("id").primaryKey(),
   postId: text("post_id").notNull(),
