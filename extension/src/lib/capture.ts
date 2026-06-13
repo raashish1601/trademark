@@ -14,7 +14,7 @@ export const PENDING_CAPTURE_KEY = "pendingCapture";
 /** A capture older than this is stale context, not something to prefill. */
 export const CAPTURE_TTL_MS = 5 * 60 * 1000;
 
-const BROKER_IDS: readonly BrokerId[] = ["kite", "upstox", "groww"];
+const BROKER_IDS: readonly BrokerId[] = ["kite", "upstox", "groww", "dhan"];
 
 export interface PendingCapture extends CapturedOrder {
   /** Stamped by the service worker when the capture arrived. */
