@@ -235,6 +235,8 @@ const fixtureFor = (url) => {
   if (url?.startsWith("/tradebook")) return "kite-tradebook.html";
   if (url?.startsWith("/upstox-changed")) return "upstox-order-window-changed.html";
   if (url?.startsWith("/upstox")) return "upstox-order-window.html";
+  if (url?.startsWith("/groww-changed")) return "groww-order-window-changed.html";
+  if (url?.startsWith("/groww")) return "groww-order-window.html";
   return "kite-order-window.html";
 };
 const fixtureServer = createServer((req, res) => {
@@ -453,10 +455,133 @@ await step("upstox: changed order DOM degrades silently", async () => {
     throw new Error("capture button injected into an unrecognized DOM");
   await upstoxPage.close();
   // Unregister so the Upstox script can't fire on the shared fixture origin
-  // during the positions-import steps below.
+  // during the Groww + positions-import steps below.
   await panel.evaluate(async () => {
     await chrome.scripting
       .unregisterContentScripts({ ids: ["tm-capture-upstox-e2e"] })
+      .catch(() => undefined);
+  });
+});
+
+// ── v2: Groww order-window capture (registry-driven, third adapter) ───────
+// Same opt-in path as Kite/Upstox: the REAL built content-groww.js bundle is
+// registered through chrome.scripting on the localhost fixture origin (real
+// groww.in sits behind a login). Groww's web terminal is a React app with
+// hashed/utility CSS classes, so the adapter anchors on visible "Qty"/"Price"
+// labels, the buy/sell class fragment + "Buy …/Place sell order" copy + active
+// side tab, and [class*='contractName']/[class*='ltp'] substring matchers — the
+// fixture mirrors that hashed-class structure, and renders F&O contracts as
+// SPACED names ("NIFTY 25 JUN 2026 24500 CALL").
+let growwPage;
+await step("groww: content script registers on the fixture origin", async () => {
+  await panel.evaluate(async () => {
+    await chrome.scripting.registerContentScripts([
+      {
+        id: "tm-capture-groww-e2e",
+        js: ["content-groww.js"],
+        matches: ["http://localhost:3401/*"],
+        runAt: "document_idle",
+      },
+    ]);
+  });
+  const ids = await panel.evaluate(async () =>
+    (await chrome.scripting.getRegisteredContentScripts()).map((s) => s.id)
+  );
+  if (!ids.includes("tm-capture-groww-e2e")) throw new Error(`registration missing: ${ids}`);
+});
+
+await step("groww: affordance appears on the order pad", async () => {
+  growwPage = await ctx.newPage();
+  await growwPage.goto(`http://localhost:${FIXTURE_PORT}/groww`, { waitUntil: "load" });
+  await growwPage.locator("[data-fixture-row='RELIANCE'] [data-fixture='buy']").click();
+  await growwPage.locator("._orderPad_5d2e9._buy_5d2e9").waitFor({ timeout: 5000 });
+  const btn = growwPage.locator("[data-tm-capture]");
+  await btn.waitFor({ timeout: 5000 });
+  const label = await btn.textContent();
+  if (!label.includes("Log in TradeMarkk")) throw new Error(`wrong label: ${label}`);
+  if ((await btn.getAttribute("data-tm-capture")) !== "1")
+    throw new Error("missing adapter version tag");
+});
+
+await step("groww: click prefills the quick log (buy, limit price)", async () => {
+  await growwPage.locator("._orderPad_5d2e9 ._field_5d2e9:has-text('Qty') input").fill("50");
+  await growwPage
+    .locator("._orderPad_5d2e9 ._field_5d2e9:has-text('Price') input")
+    .first()
+    .fill("2980.4");
+  await growwPage.locator("[data-tm-capture]").click();
+  await panel.bringToFront();
+  await panel.getByTestId("capture-chip").waitFor({ timeout: 10000 });
+  const chip = await panel.getByTestId("capture-chip").textContent();
+  if (!chip.includes("Groww")) throw new Error(`wrong capture source chip: ${chip}`);
+  const value = (label) => panel.getByLabel(label, { exact: true }).inputValue();
+  if ((await value("Instrument")) !== "RELIANCE") throw new Error("instrument not prefilled");
+  if ((await value("Qty")) !== "50") throw new Error("qty not prefilled");
+  if ((await value("Entry")) !== "2980.4") throw new Error("entry not prefilled");
+  const buyPressed = await panel
+    .getByRole("button", { name: "Buy", exact: true })
+    .getAttribute("aria-pressed");
+  if (buyPressed !== "true") throw new Error("buy side not selected");
+});
+
+await step("groww: captured trade saves into the journal", async () => {
+  // RELIANCE was already imported via Upstox above — give this round-trip a
+  // distinct exit so a later "RELIANCE" assertion can't be satisfied by stale
+  // rows; the journal-row assertion below keys off this Groww trade existing.
+  await panel.getByLabel("Exit", { exact: true }).fill("3010.55");
+  await panel.getByLabel("Exit", { exact: true }).press("Enter");
+  await panel.getByText("RELIANCE logged").waitFor({ timeout: 30000 });
+  await appTab.bringToFront();
+  await appTab.goto(`${BASE}/app/trades`, { waitUntil: "networkidle" });
+  await appTab.locator("tr", { hasText: "RELIANCE" }).first().waitFor({ timeout: 30000 });
+});
+
+await step("groww: sell market order → Sell side + last-price fallback", async () => {
+  await growwPage.bringToFront();
+  await growwPage
+    .locator("[data-fixture-row='NIFTY 25 JUN 2026 24500 CALL'] [data-fixture='sell']")
+    .click();
+  await growwPage.locator("._orderPad_5d2e9._sell_5d2e9").waitFor({ timeout: 5000 });
+  await growwPage.locator("._orderPad_5d2e9 ._field_5d2e9:has-text('Qty') input").fill("75");
+  const btn = growwPage.locator("[data-tm-capture]");
+  await btn.waitFor({ timeout: 5000 });
+  await btn.click();
+  await panel.bringToFront();
+  await panel.getByTestId("capture-chip").waitFor({ timeout: 10000 });
+  const value = (label) => panel.getByLabel(label, { exact: true }).inputValue();
+  // Groww renders the spaced contract name; the adapter forwards it verbatim and
+  // the panel's parser turns it into NIFTY 24500 CE.
+  if ((await value("Instrument")) !== "NIFTY 25 JUN 2026 24500 CALL")
+    throw new Error(`instrument not prefilled: ${await value("Instrument")}`);
+  if ((await value("Qty")) !== "75") throw new Error("qty not prefilled");
+  // The option row is a market order (price disabled at 0) — the adapter must
+  // fall back to the last traded price, never capture 0.
+  if ((await value("Entry")) !== "145.3")
+    throw new Error(`expected LTP fallback 145.3, got "${await value("Entry")}"`);
+  const sellPressed = await panel
+    .getByRole("button", { name: "Sell", exact: true })
+    .getAttribute("aria-pressed");
+  if (sellPressed !== "true") throw new Error("sell side not selected");
+  const parsed = await panel.getByTestId("parse-chip").textContent();
+  if (!parsed.includes("NIFTY") || !parsed.includes("24500") || !parsed.includes("CE"))
+    throw new Error(`captured option did not parse: ${parsed}`);
+  // Clear the staged capture so it doesn't bleed into later steps.
+  await panel.getByRole("button", { name: "Dismiss broker capture" }).click();
+});
+
+await step("groww: changed order DOM degrades silently", async () => {
+  await growwPage.goto(`http://localhost:${FIXTURE_PORT}/groww-changed`, { waitUntil: "load" });
+  await growwPage.locator("[data-fixture='open-changed']").click();
+  await growwPage.locator("._pad2_44bb2").waitFor({ timeout: 5000 });
+  await growwPage.waitForTimeout(1200); // > the content script's rescan debounce
+  if ((await growwPage.locator("[data-tm-capture]").count()) !== 0)
+    throw new Error("capture button injected into an unrecognized DOM");
+  await growwPage.close();
+  // Unregister so the Groww script can't fire on the shared fixture origin
+  // during the positions-import steps below.
+  await panel.evaluate(async () => {
+    await chrome.scripting
+      .unregisterContentScripts({ ids: ["tm-capture-groww-e2e"] })
       .catch(() => undefined);
   });
 });
