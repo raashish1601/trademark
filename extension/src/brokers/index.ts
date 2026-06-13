@@ -2,6 +2,8 @@ import type { BrokerCaptureAdapter, BrokerId } from "./types";
 import { kiteAdapter } from "./kite";
 import { upstoxAdapter } from "./upstox";
 import { growwAdapter } from "./groww";
+import { dhanAdapter } from "./dhan";
+import { fyersAdapter } from "./fyers";
 
 /**
  * Registry of broker capture adapters. Adding a broker (Upstox, Groww, …) is:
@@ -17,6 +19,8 @@ export const captureAdapters: readonly BrokerCaptureAdapter[] = [
   kiteAdapter,
   upstoxAdapter,
   growwAdapter,
+  dhanAdapter,
+  fyersAdapter,
 ];
 
 // (Adding the next broker is one more entry above + its content entry + a

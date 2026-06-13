@@ -14,6 +14,15 @@
   "action": {
     "default_title": "TradeMarkk"
   },
+  "commands": {
+    "open-trademarkk-panel": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+J",
+        "mac": "MacCtrl+Shift+J"
+      },
+      "description": "Open the TradeMarkk panel"
+    }
+  },
   "background": {
     "service_worker": "sw.js",
     "type": "module"
@@ -21,7 +30,7 @@
   "side_panel": {
     "default_path": "sidepanel.html"
   },
-  "permissions": ["sidePanel", "storage", "scripting"],
+  "permissions": ["sidePanel", "storage", "scripting", "alarms", "activeTab"],
   "host_permissions": ["https://thetrademarkk.com/*", "http://localhost/*"],
   "optional_host_permissions": ["https://*/*"]
 }

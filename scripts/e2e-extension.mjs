@@ -87,6 +87,50 @@ await step("panel loads and opens settings", async () => {
     await panel.getByRole("button", { name: "Settings" }).click({ timeout: 10000 });
     await panel.getByLabel("TradeMarkk app URL").waitFor({ timeout: 5000 });
   }
+  await panel.getByRole("button", { name: "Close settings" }).click({ timeout: 5000 });
+});
+
+// ── Keyboard shortcut + popup-mode polish (Chromium-fork fallback surface) ──
+// The shortcut is declared in the manifest and handled in the dependency-free
+// service worker; assert the manifest entry is present (the SW handler is unit-
+// covered by commands.test.ts). Then verify the popup surface — the same React
+// UI Chrome shows on forks without chrome.sidePanel — renders the panel root at
+// the 320px popup floor with no horizontal overflow.
+await step("manifest declares the open-panel keyboard command", async () => {
+  const commands = await panel.evaluate(() => chrome.runtime.getManifest().commands);
+  const cmd = commands?.["open-trademarkk-panel"];
+  if (!cmd) throw new Error(`open-trademarkk-panel command missing: ${JSON.stringify(commands)}`);
+  if (cmd.suggested_key?.default !== "Ctrl+Shift+J")
+    throw new Error(`unexpected default key: ${JSON.stringify(cmd.suggested_key)}`);
+  if (cmd.suggested_key?.mac !== "MacCtrl+Shift+J")
+    throw new Error(`unexpected mac key: ${JSON.stringify(cmd.suggested_key)}`);
+});
+
+await step("popup renders the panel root at 320px with no horizontal overflow", async () => {
+  const popup = await ctx.newPage();
+  try {
+    // Chrome's popup floor is 320px wide — render the popup document there and
+    // assert the same companion UI mounts and never spills horizontally.
+    await popup.setViewportSize({ width: 320, height: 580 });
+    await popup.goto(`chrome-extension://${EXT_ID}/popup.html`, { waitUntil: "load" });
+    await popup.getByText("TradeMarkk").first().waitFor({ timeout: 15000 });
+    // The popup body carries the .popup class (the fork-fallback chrome) and
+    // mounts the React panel root inside #root.
+    if (!(await popup.locator("body.popup .panel").count()))
+      throw new Error("popup did not mount the panel shell");
+    const overflow = await popup.evaluate(() => {
+      const de = document.documentElement;
+      return {
+        docOverflow: de.scrollWidth - de.clientWidth,
+        bodyOverflow: document.body.scrollWidth - document.body.clientWidth,
+      };
+    });
+    // A 1px rounding slack is fine; anything more is a real horizontal scrollbar.
+    if (overflow.docOverflow > 1 || overflow.bodyOverflow > 1)
+      throw new Error(`popup overflows horizontally at 320px: ${JSON.stringify(overflow)}`);
+  } finally {
+    await popup.close();
+  }
 });
 
 await step("app URL override saves (self-hoster flow)", async () => {
@@ -197,6 +241,111 @@ await step("trade appears in the web journal with correct values", async () => {
   }
 });
 
+// ── Chart screenshot capture → attach to trade ─────────────────────────────
+// Real chrome.tabs.captureVisibleTab needs a real broker/chart tab + a user
+// gesture Playwright can't supply, so we stub it in the panel page to return a
+// fixture PNG. The REAL compress/attach code runs: the panel downscales +
+// JPEG-compresses it (capped ~200 KB) and writes it through the SAME
+// AttachmentRow write path as the web app, so the round-trip — capture →
+// preview → attach → web trade-detail <img> — is exercised end to end.
+const SHOT_SYMBOL = "TATAMOTORS";
+// 1x1 red PNG (a real, decodable image so the panel's <img>/canvas pipeline runs).
+const FIXTURE_PNG =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+await step("screenshot: capture button stages a removable preview", async () => {
+  await panel.bringToFront();
+  // Return to the quick-log form after the first trade's success screen.
+  await panel.getByRole("button", { name: "Log another" }).click();
+  await panel.getByLabel("Instrument", { exact: true }).waitFor({ timeout: 15000 });
+
+  // Stub the Chrome capture API on the panel page (the real one is gesture/host
+  // gated). Re-applied here because the panel is a fresh document per render.
+  await panel.evaluate((png) => {
+    // @ts-ignore — test stub
+    chrome.tabs = chrome.tabs || {};
+    // @ts-ignore — test stub
+    chrome.tabs.captureVisibleTab = () => Promise.resolve(png);
+  }, FIXTURE_PNG);
+
+  await panel.getByTestId("capture-chart").click();
+  const preview = panel.getByTestId("screenshot-preview");
+  await preview.waitFor({ timeout: 15000 });
+  const src = await preview.locator("img").getAttribute("src");
+  if (!src || !src.startsWith("data:image/")) {
+    throw new Error(`preview is not a data-URL image: ${String(src).slice(0, 40)}`);
+  }
+  // The stored image is the compressed JPEG, not the raw PNG we fed in.
+  if (!src.startsWith("data:image/jpeg")) {
+    throw new Error(`expected compressed JPEG preview, got: ${src.slice(0, 30)}`);
+  }
+
+  // Removable before save.
+  await panel.getByRole("button", { name: "Remove captured chart" }).click();
+  if ((await panel.getByTestId("screenshot-preview").count()) !== 0) {
+    throw new Error("preview was not removed");
+  }
+  // Re-capture for the attach step.
+  await panel.getByTestId("capture-chart").click();
+  await panel.getByTestId("screenshot-preview").waitFor({ timeout: 15000 });
+});
+
+let shotDataLen = 0;
+await step("screenshot: saving the trade attaches the chart", async () => {
+  await panel.getByLabel("Instrument", { exact: true }).fill(SHOT_SYMBOL);
+  await panel.getByLabel("Qty", { exact: true }).fill("10");
+  await panel.getByLabel("Entry", { exact: true }).fill("950");
+  await panel.getByLabel("Exit", { exact: true }).fill("980");
+  shotDataLen = (await panel.getByTestId("screenshot-preview").locator("img").getAttribute("src"))
+    .length;
+  await panel.getByLabel("Exit", { exact: true }).press("Enter");
+  await panel.getByText(`${SHOT_SYMBOL} logged`).waitFor({ timeout: 30000 });
+  // Success copy confirms the attachment write succeeded.
+  await panel.getByText(/chart attached/).waitFor({ timeout: 10000 });
+});
+
+await step("screenshot: chart renders on the web trade-detail", async () => {
+  await appTab.bringToFront();
+  await appTab.goto(`${BASE}/app/trades`, { waitUntil: "networkidle" });
+  const row = appTab.locator("tr", { hasText: SHOT_SYMBOL }).first();
+  await row.waitFor({ timeout: 30000 });
+  await row.click(); // opens the quick-view dialog
+  await appTab.getByRole("link", { name: /Open full view/ }).click();
+  await appTab.waitForURL("**/app/trades/**", { timeout: 30000 });
+  await appTab.getByText("Screenshots").waitFor({ timeout: 30000 });
+  // The attachment must render as an <img> whose src is the stored data URL.
+  const shot = appTab.locator('img[alt="Trade screenshot"]').first();
+  await shot.waitFor({ timeout: 30000 });
+  const src = await shot.getAttribute("src");
+  if (!src || !src.startsWith("data:image/")) {
+    throw new Error(`trade-detail screenshot is not a data URL: ${String(src).slice(0, 40)}`);
+  }
+  if (src.length !== shotDataLen) {
+    throw new Error(`round-trip mismatch: panel ${shotDataLen} vs web ${src.length} bytes`);
+  }
+});
+
+// ── Rules-nudge toolbar badge ──────────────────────────────────────────────
+// Now there's 1 trade today and the 6 seeded rules are still untouched, so the
+// service worker must show the unticked-rule count on the toolbar action badge.
+// The panel computes the snapshot and pokes the SW, which owns the badge text;
+// chrome.action.getBadgeText reads the applied value straight from the SW. This
+// run is on IST (the box the journal is keyed to), so the trade's local-time
+// timestamp lands on the same IST day the badge query counts.
+await step("badge: shows the unticked-rule count once the day has a trade", async () => {
+  await panel.bringToFront();
+  const text = await panel.waitForFunction(
+    async () => {
+      const t = await chrome.action.getBadgeText({});
+      return /^[1-9]\d*$/.test(t) ? t : false;
+    },
+    null,
+    { timeout: 20000, polling: 500 }
+  );
+  const badge = await text.jsonValue();
+  if (badge !== "6") throw new Error(`expected badge "6" (6 untouched rules), got "${badge}"`);
+});
+
 // ── Rules sync ─────────────────────────────────────────────────────────────
 let firstRule = "";
 await step("rule checks off from the panel", async () => {
@@ -207,6 +356,20 @@ await step("rule checks off from the panel", async () => {
   await panel.locator(".rule-btn").first().click(); // "Followed" on rule 1
   await panel.locator(".rule-btn.on-followed").first().waitFor({ timeout: 10000 });
   await panel.getByText(/1\/\d+ followed/).waitFor({ timeout: 10000 });
+});
+
+await step("badge: decrements when a rule is addressed", async () => {
+  // One of the 6 rules is now ticked (any tri-state counts as addressed), so
+  // the nudge count must drop to 5.
+  const handle = await panel.waitForFunction(
+    async () => {
+      const t = await chrome.action.getBadgeText({});
+      return t === "5" ? t : false;
+    },
+    null,
+    { timeout: 20000, polling: 500 }
+  );
+  if ((await handle.jsonValue()) !== "5") throw new Error("badge did not decrement to 5");
 });
 
 await step("rule check-off is visible on the web dashboard", async () => {
@@ -237,6 +400,10 @@ const fixtureFor = (url) => {
   if (url?.startsWith("/upstox")) return "upstox-order-window.html";
   if (url?.startsWith("/groww-changed")) return "groww-order-window-changed.html";
   if (url?.startsWith("/groww")) return "groww-order-window.html";
+  if (url?.startsWith("/dhan-changed")) return "dhan-order-window-changed.html";
+  if (url?.startsWith("/dhan")) return "dhan-order-window.html";
+  if (url?.startsWith("/fyers-changed")) return "fyers-order-window-changed.html";
+  if (url?.startsWith("/fyers")) return "fyers-order-window.html";
   return "kite-order-window.html";
 };
 const fixtureServer = createServer((req, res) => {
@@ -578,10 +745,259 @@ await step("groww: changed order DOM degrades silently", async () => {
     throw new Error("capture button injected into an unrecognized DOM");
   await growwPage.close();
   // Unregister so the Groww script can't fire on the shared fixture origin
-  // during the positions-import steps below.
+  // during the Dhan + positions-import steps below.
   await panel.evaluate(async () => {
     await chrome.scripting
       .unregisterContentScripts({ ids: ["tm-capture-groww-e2e"] })
+      .catch(() => undefined);
+  });
+});
+
+// ── v2: Dhan order-window capture (registry-driven, fourth adapter) ───────
+// Same opt-in path as Kite/Upstox/Groww: the REAL built content-dhan.js bundle
+// is registered through chrome.scripting on the localhost fixture origin (real
+// Dhan sits behind a login). Dhan's web suite (Dhan Web / TradingView terminal
+// / Options Trader) is a React app with hashed/utility CSS classes, so the
+// adapter anchors on visible "Qty"/"Price" labels, the buy/sell class fragment
+// + "Buy …/Place sell order" copy + active side tab, and
+// [class*='tradingSymbol']/[class*='ltp'] substring matchers — the fixture
+// mirrors that hashed-class structure, and (Dhan being derivatives-heavy)
+// renders F&O contracts as COMPACT tradingsymbols ("NIFTY24AUG24000CE").
+let dhanPage;
+await step("dhan: content script registers on the fixture origin", async () => {
+  await panel.evaluate(async () => {
+    await chrome.scripting.registerContentScripts([
+      {
+        id: "tm-capture-dhan-e2e",
+        js: ["content-dhan.js"],
+        matches: ["http://localhost:3401/*"],
+        runAt: "document_idle",
+      },
+    ]);
+  });
+  const ids = await panel.evaluate(async () =>
+    (await chrome.scripting.getRegisteredContentScripts()).map((s) => s.id)
+  );
+  if (!ids.includes("tm-capture-dhan-e2e")) throw new Error(`registration missing: ${ids}`);
+});
+
+await step("dhan: affordance appears on the order window", async () => {
+  dhanPage = await ctx.newPage();
+  await dhanPage.goto(`http://localhost:${FIXTURE_PORT}/dhan`, { waitUntil: "load" });
+  await dhanPage.locator("[data-fixture-row='RELIANCE'] [data-fixture='buy']").click();
+  await dhanPage.locator("._orderWindow_6e3f1._buy_6e3f1").waitFor({ timeout: 5000 });
+  const btn = dhanPage.locator("[data-tm-capture]");
+  await btn.waitFor({ timeout: 5000 });
+  const label = await btn.textContent();
+  if (!label.includes("Log in TradeMarkk")) throw new Error(`wrong label: ${label}`);
+  if ((await btn.getAttribute("data-tm-capture")) !== "1")
+    throw new Error("missing adapter version tag");
+});
+
+await step("dhan: click prefills the quick log (buy, limit price)", async () => {
+  await dhanPage.locator("._orderWindow_6e3f1 ._field_6e3f1:has-text('Qty') input").fill("50");
+  await dhanPage
+    .locator("._orderWindow_6e3f1 ._field_6e3f1:has-text('Price') input")
+    .first()
+    .fill("2980.4");
+  await dhanPage.locator("[data-tm-capture]").click();
+  await panel.bringToFront();
+  await panel.getByTestId("capture-chip").waitFor({ timeout: 10000 });
+  const chip = await panel.getByTestId("capture-chip").textContent();
+  if (!chip.includes("Dhan")) throw new Error(`wrong capture source chip: ${chip}`);
+  const value = (label) => panel.getByLabel(label, { exact: true }).inputValue();
+  if ((await value("Instrument")) !== "RELIANCE") throw new Error("instrument not prefilled");
+  if ((await value("Qty")) !== "50") throw new Error("qty not prefilled");
+  if ((await value("Entry")) !== "2980.4") throw new Error("entry not prefilled");
+  const buyPressed = await panel
+    .getByRole("button", { name: "Buy", exact: true })
+    .getAttribute("aria-pressed");
+  if (buyPressed !== "true") throw new Error("buy side not selected");
+});
+
+await step("dhan: captured trade saves into the journal", async () => {
+  // RELIANCE was already imported via Upstox/Groww above — give this round-trip
+  // a distinct exit so the journal-row assertion keys off this Dhan trade.
+  await panel.getByLabel("Exit", { exact: true }).fill("3025.75");
+  await panel.getByLabel("Exit", { exact: true }).press("Enter");
+  await panel.getByText("RELIANCE logged").waitFor({ timeout: 30000 });
+  await appTab.bringToFront();
+  await appTab.goto(`${BASE}/app/trades`, { waitUntil: "networkidle" });
+  await appTab.locator("tr", { hasText: "RELIANCE" }).first().waitFor({ timeout: 30000 });
+});
+
+await step("dhan: sell market order → Sell side + last-price fallback", async () => {
+  await dhanPage.bringToFront();
+  await dhanPage.locator("[data-fixture-row='NIFTY24AUG24000CE'] [data-fixture='sell']").click();
+  await dhanPage.locator("._orderWindow_6e3f1._sell_6e3f1").waitFor({ timeout: 5000 });
+  await dhanPage.locator("._orderWindow_6e3f1 ._field_6e3f1:has-text('Qty') input").fill("75");
+  const btn = dhanPage.locator("[data-tm-capture]");
+  await btn.waitFor({ timeout: 5000 });
+  await btn.click();
+  await panel.bringToFront();
+  await panel.getByTestId("capture-chip").waitFor({ timeout: 10000 });
+  const value = (label) => panel.getByLabel(label, { exact: true }).inputValue();
+  // Dhan is derivatives-heavy and renders the compact tradingsymbol; the adapter
+  // forwards it verbatim and the panel's parser turns it into NIFTY 24000 CE.
+  if ((await value("Instrument")) !== "NIFTY24AUG24000CE")
+    throw new Error(`instrument not prefilled: ${await value("Instrument")}`);
+  if ((await value("Qty")) !== "75") throw new Error("qty not prefilled");
+  // The option row is a market order (price disabled at 0) — the adapter must
+  // fall back to the last traded price, never capture 0.
+  if ((await value("Entry")) !== "182.5")
+    throw new Error(`expected LTP fallback 182.5, got "${await value("Entry")}"`);
+  const sellPressed = await panel
+    .getByRole("button", { name: "Sell", exact: true })
+    .getAttribute("aria-pressed");
+  if (sellPressed !== "true") throw new Error("sell side not selected");
+  const parsed = await panel.getByTestId("parse-chip").textContent();
+  if (!parsed.includes("NIFTY") || !parsed.includes("24000") || !parsed.includes("CE"))
+    throw new Error(`captured option did not parse: ${parsed}`);
+  // Clear the staged capture so it doesn't bleed into later steps.
+  await panel.getByRole("button", { name: "Dismiss broker capture" }).click();
+});
+
+await step("dhan: changed order DOM degrades silently", async () => {
+  await dhanPage.goto(`http://localhost:${FIXTURE_PORT}/dhan-changed`, { waitUntil: "load" });
+  await dhanPage.locator("[data-fixture='open-changed']").click();
+  await dhanPage.locator("._ow2_91ce3").waitFor({ timeout: 5000 });
+  await dhanPage.waitForTimeout(1200); // > the content script's rescan debounce
+  if ((await dhanPage.locator("[data-tm-capture]").count()) !== 0)
+    throw new Error("capture button injected into an unrecognized DOM");
+  await dhanPage.close();
+  // Unregister so the Dhan script can't fire on the shared fixture origin
+  // during the Fyers + positions-import steps below.
+  await panel.evaluate(async () => {
+    await chrome.scripting
+      .unregisterContentScripts({ ids: ["tm-capture-dhan-e2e"] })
+      .catch(() => undefined);
+  });
+});
+
+// ── v2: Fyers order-window capture (registry-driven, fifth adapter) ───────
+// Same opt-in path as Kite/Upstox/Groww/Dhan: the REAL built content-fyers.js
+// bundle is registered through chrome.scripting on the localhost fixture origin
+// (real Fyers sits behind a login). Fyers Web (login.fyers.in / app.fyers.in /
+// fyers.in/web) is a React terminal with hashed/utility CSS classes, so the
+// adapter anchors on visible "Qty"/"Price" labels, the buy/sell class fragment
+// + "Buy …/Place sell order" copy + active side tab, and
+// [class*='symbolName']/[class*='ltp'] substring matchers — the fixture mirrors
+// that hashed-class structure, and Fyers renders symbols as EXCHANGE-PREFIXED,
+// series-suffixed tickers ("NSE:SBIN-EQ", "NSE:NIFTY24JUN24500CE") that
+// parseContractName understands directly.
+let fyersPage;
+await step("fyers: content script registers on the fixture origin", async () => {
+  await panel.evaluate(async () => {
+    await chrome.scripting.registerContentScripts([
+      {
+        id: "tm-capture-fyers-e2e",
+        js: ["content-fyers.js"],
+        matches: ["http://localhost:3401/*"],
+        runAt: "document_idle",
+      },
+    ]);
+  });
+  const ids = await panel.evaluate(async () =>
+    (await chrome.scripting.getRegisteredContentScripts()).map((s) => s.id)
+  );
+  if (!ids.includes("tm-capture-fyers-e2e")) throw new Error(`registration missing: ${ids}`);
+});
+
+await step("fyers: affordance appears on the order window", async () => {
+  fyersPage = await ctx.newPage();
+  await fyersPage.goto(`http://localhost:${FIXTURE_PORT}/fyers`, { waitUntil: "load" });
+  await fyersPage.locator("[data-fixture-row='NSE:SBIN-EQ'] [data-fixture='buy']").click();
+  await fyersPage.locator("._orderWindow_7bd09._buy_7bd09").waitFor({ timeout: 5000 });
+  const btn = fyersPage.locator("[data-tm-capture]");
+  await btn.waitFor({ timeout: 5000 });
+  const label = await btn.textContent();
+  if (!label.includes("Log in TradeMarkk")) throw new Error(`wrong label: ${label}`);
+  if ((await btn.getAttribute("data-tm-capture")) !== "1")
+    throw new Error("missing adapter version tag");
+});
+
+await step("fyers: click prefills the quick log (buy, limit price)", async () => {
+  await fyersPage.locator("._orderWindow_7bd09 ._field_7bd09:has-text('Qty') input").fill("50");
+  await fyersPage
+    .locator("._orderWindow_7bd09 ._field_7bd09:has-text('Price') input")
+    .first()
+    .fill("612.4");
+  await fyersPage.locator("[data-tm-capture]").click();
+  await panel.bringToFront();
+  await panel.getByTestId("capture-chip").waitFor({ timeout: 10000 });
+  const chip = await panel.getByTestId("capture-chip").textContent();
+  if (!chip.includes("Fyers")) throw new Error(`wrong capture source chip: ${chip}`);
+  const value = (label) => panel.getByLabel(label, { exact: true }).inputValue();
+  // Fyers forwards its native exchange-prefixed symbol verbatim; the panel's
+  // parser strips "NSE:" + "-EQ" itself, so the chip resolves to SBIN equity.
+  if ((await value("Instrument")) !== "NSE:SBIN-EQ") throw new Error("instrument not prefilled");
+  if ((await value("Qty")) !== "50") throw new Error("qty not prefilled");
+  if ((await value("Entry")) !== "612.4") throw new Error("entry not prefilled");
+  const buyPressed = await panel
+    .getByRole("button", { name: "Buy", exact: true })
+    .getAttribute("aria-pressed");
+  if (buyPressed !== "true") throw new Error("buy side not selected");
+  const parsed = await panel.getByTestId("parse-chip").textContent();
+  if (!parsed.includes("SBIN")) throw new Error(`Fyers equity symbol did not parse: ${parsed}`);
+});
+
+await step("fyers: captured trade saves into the journal", async () => {
+  // SBIN is unique to this Fyers round-trip (other adapters used RELIANCE), so
+  // the journal-row assertion keys off this Fyers trade.
+  await panel.getByLabel("Exit", { exact: true }).fill("625.75");
+  await panel.getByLabel("Exit", { exact: true }).press("Enter");
+  await panel.getByText("SBIN logged").waitFor({ timeout: 30000 });
+  await appTab.bringToFront();
+  await appTab.goto(`${BASE}/app/trades`, { waitUntil: "networkidle" });
+  await appTab.locator("tr", { hasText: "SBIN" }).first().waitFor({ timeout: 30000 });
+});
+
+await step("fyers: sell market order → Sell side + last-price fallback", async () => {
+  await fyersPage.bringToFront();
+  await fyersPage
+    .locator("[data-fixture-row='NSE:NIFTY24JUN24500CE'] [data-fixture='sell']")
+    .click();
+  await fyersPage.locator("._orderWindow_7bd09._sell_7bd09").waitFor({ timeout: 5000 });
+  await fyersPage.locator("._orderWindow_7bd09 ._field_7bd09:has-text('Qty') input").fill("75");
+  const btn = fyersPage.locator("[data-tm-capture]");
+  await btn.waitFor({ timeout: 5000 });
+  await btn.click();
+  await panel.bringToFront();
+  await panel.getByTestId("capture-chip").waitFor({ timeout: 10000 });
+  const value = (label) => panel.getByLabel(label, { exact: true }).inputValue();
+  // Fyers renders the native exchange-prefixed option key; the adapter forwards
+  // it verbatim and the panel's parser turns it into NIFTY 24500 CE.
+  if ((await value("Instrument")) !== "NSE:NIFTY24JUN24500CE")
+    throw new Error(`instrument not prefilled: ${await value("Instrument")}`);
+  if ((await value("Qty")) !== "75") throw new Error("qty not prefilled");
+  // The option row is a market order (price disabled at 0) — the adapter must
+  // fall back to the last traded price, never capture 0.
+  if ((await value("Entry")) !== "182.5")
+    throw new Error(`expected LTP fallback 182.5, got "${await value("Entry")}"`);
+  const sellPressed = await panel
+    .getByRole("button", { name: "Sell", exact: true })
+    .getAttribute("aria-pressed");
+  if (sellPressed !== "true") throw new Error("sell side not selected");
+  const parsed = await panel.getByTestId("parse-chip").textContent();
+  if (!parsed.includes("NIFTY") || !parsed.includes("24500") || !parsed.includes("CE"))
+    throw new Error(`captured option did not parse: ${parsed}`);
+  // Clear the staged capture so it doesn't bleed into later steps.
+  await panel.getByRole("button", { name: "Dismiss broker capture" }).click();
+});
+
+await step("fyers: changed order DOM degrades silently", async () => {
+  await fyersPage.goto(`http://localhost:${FIXTURE_PORT}/fyers-changed`, { waitUntil: "load" });
+  await fyersPage.locator("[data-fixture='open-changed']").click();
+  await fyersPage.locator("._ow2_5dc18").waitFor({ timeout: 5000 });
+  await fyersPage.waitForTimeout(1200); // > the content script's rescan debounce
+  if ((await fyersPage.locator("[data-tm-capture]").count()) !== 0)
+    throw new Error("capture button injected into an unrecognized DOM");
+  await fyersPage.close();
+  // Unregister so the Fyers script can't fire on the shared fixture origin
+  // during the positions-import steps below.
+  await panel.evaluate(async () => {
+    await chrome.scripting
+      .unregisterContentScripts({ ids: ["tm-capture-fyers-e2e"] })
       .catch(() => undefined);
   });
 });
@@ -694,6 +1110,16 @@ await step("panel sign-out returns to the signed-out state", async () => {
   await panel.getByRole("button", { name: "Settings" }).click();
   await panel.getByRole("button", { name: "Sign out" }).click();
   await panel.getByText("Sign in to TradeMarkk").first().waitFor({ timeout: 20000 });
+});
+
+await step("badge: sign-out clears the toolbar badge", async () => {
+  // Signing out must drop the nudge entirely (and cancel the SW alarm).
+  const handle = await panel.waitForFunction(
+    async () => ((await chrome.action.getBadgeText({})) === "" ? true : false),
+    null,
+    { timeout: 20000, polling: 500 }
+  );
+  if (!(await handle.jsonValue())) throw new Error("badge was not cleared on sign-out");
 });
 
 // ── Cleanup: delete the account (also deletes the provisioned Turso DB) ───

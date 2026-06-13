@@ -12,6 +12,15 @@ export const user = sqliteTable("user", {
   image: text("image"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  // ── Email-abuse hardening (durable per-account cooldown + daily caps) ──
+  // Epoch-ms of the last sent email of each kind; the daily counter resets
+  // inline when the stored timestamp's IST/local date != today (no cron).
+  lastPasswordResetEmailAt: integer("last_password_reset_email_at"),
+  passwordResetEmailCountToday: integer("password_reset_email_count_today").notNull().default(0),
+  lastVerificationEmailAt: integer("last_verification_email_at"),
+  verificationEmailCountToday: integer("verification_email_count_today").notNull().default(0),
+  lastOtpEmailAt: integer("last_otp_email_at"),
+  otpEmailCountToday: integer("otp_email_count_today").notNull().default(0),
 });
 
 export const session = sqliteTable("session", {
@@ -97,7 +106,10 @@ export const posts = sqliteTable("posts", {
   body: text("body").notNull(),
   tradeCard: text("trade_card"), // JSON snapshot shared from the journal
   tags: text("tags"), // JSON string[]
+  /** TOTAL reaction count (all kinds). Kept rename-free for back-compat. */
   likeCount: integer("like_count").notNull().default(0),
+  /** Denormalized per-kind breakdown JSON, e.g. {"like":3,"insightful":2}; NULL = legacy/all-likes. */
+  reactions: text("reactions"),
   commentCount: integer("comment_count").notNull().default(0),
   shareCount: integer("share_count").notNull().default(0),
   createdAt: text("created_at").notNull(),
@@ -169,6 +181,8 @@ export const likes = sqliteTable(
   {
     postId: text("post_id").notNull(),
     userId: text("user_id").notNull(),
+    /** Reaction kind (like|insightful|respect|celebrate); NULL = legacy plain like. */
+    reaction: text("reaction"),
     createdAt: text("created_at").notNull(),
   },
   (t) => [primaryKey({ columns: [t.postId, t.userId] })]
@@ -253,6 +267,18 @@ export const webVitals = sqliteTable("web_vitals", {
   value: real("value").notNull(), // ms for timing metrics; unitless score for CLS
   path: text("path").notNull(),
   createdAt: text("created_at").notNull(),
+});
+
+/**
+ * Durable fixed-window rate-limit store. One row per limiter key; the count is
+ * reset when `windowStart` ages past the window. Backs `rateLimit()` so limits
+ * actually enforce across serverless cold starts (an in-memory Map would reset
+ * per lambda invocation). Old rows are pruned opportunistically.
+ */
+export const rateLimits = sqliteTable("rate_limits", {
+  key: text("key").primaryKey(),
+  count: integer("count").notNull().default(0),
+  windowStart: integer("window_start").notNull().default(0), // epoch ms
 });
 
 /** One row per user → which Turso DB holds their journal, and which mode they're in. */
