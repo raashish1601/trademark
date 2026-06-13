@@ -178,40 +178,37 @@ trade logged from the web app.
 
 ## Backlog
 
+> **Constraint update (product owner):** broker adapters use **DOM capture under
+> the user's own live session** — no broker APIs, no paid market data, no LLM.
+> Each adapter is a registry entry + opt-in content script + DOM fixture, byte-
+> identical writes via the shared statement builder.
+
 ### v2 — broker-page capture
 
-- [x] Content scripts per broker that read the order panel and prefill the
-      trade form via one click — "capture this order". Strict allowlist of
-      broker domains, read-only DOM access, no injected UI beyond the capture
-      affordance. _(Kite shipped; adapter registry ready for more brokers.)_
-- [ ] Upstox adapter (`extension/src/brokers/upstox.ts`) on the v2 registry.
-- [ ] Groww adapter (`extension/src/brokers/groww.ts`) on the v2 registry.
-- [ ] Executed-order toast capture on Kite (deferred from v2: toast DOM is
-      unverifiable without a live session; order-window capture is the
-      high-value path).
-- [ ] Popup mode polish (compact width) + keyboard shortcut to open the panel.
-- [ ] Optional reminder badge when the day has trades but unticked rules.
+- [x] Content scripts per broker that read the order panel and prefill the trade
+      form via one click. _(Kite shipped; adapter registry ready for more brokers.)_
+- [ ] **Positions/Tradebook auto-import (Kite first)** _(highest value, pure extension-native)_ — read the authenticated positions/orderbook/fills/charges DOM, dedupe against the journal DB, import executed trades in one click via an ImportModal with a preview/include-exclude table. No broker API, no creds.
+- [ ] **Upstox adapter** (`extension/src/brokers/upstox.ts`) on the registry.
+- [ ] **Groww adapter** (`extension/src/brokers/groww.ts`) — DOM-capture path (NOT the API path, which would need an owner-procured key).
+- [ ] **Dhan adapter** (`extension/src/brokers/dhan.ts`) — completes the 4-broker set.
+- [ ] **Fyers adapter** (`extension/src/brokers/fyers.ts`) — NSE:SBIN-EQ symbols map to the existing quick-log parser.
+- [ ] **Rules nudge badge** — `chrome.action.setBadgeText` shows unticked-rule count when the day has trades; chrome.alarms-driven refresh.
+- [ ] **Popup mode polish** (compact 320px) + Ctrl+Shift+J keyboard shortcut to open the panel.
+- [ ] **Chart screenshot capture** — `chrome.tabs.captureVisibleTab` -> attach via the existing AttachmentRow schema (no new DB columns).
+- [ ] **Pre-trade plan capture** — log symbol/side/qty/planned_entry/sl/target before entry, writing the planned_* fields that already exist in TradeRow (no migration); reconciliation lives in the journal discipline-v2 metric.
+- [ ] Executed-order toast capture on Kite — still deferred (transient toast DOM unverifiable without a live session; order-window + positions-import cover the high-value paths).
 
 ### v3 — distribution
 
-- [ ] Chrome Web Store listing: production zip pipeline, screenshots, privacy
-      policy page, store copy. (The committed `key` keeps the ID stable.)
+- [ ] **Chrome Web Store asset/zip pipeline** — CI builds dist.zip, screenshots (1280x800), 440x280 tile, privacy-policy page. Build/package is cred-free; the actual store submission is blocked on the owner's Chrome Web Store developer account.
 - [ ] Update-notification toast inside the panel.
 
 ### v4 — beyond Chrome
 
 - [ ] Firefox port (MV3 sidebar API differences, `browser.*` polyfill).
-- [ ] Quick-glance widgets: mini equity sparkline, week P&L strip.
+- [ ] Quick-glance widgets: mini equity sparkline, week P&L strip. _(High effort: needs an SVG sparkline lib + 7-day P&L/equity queries at 320px; lucide not suitable. Stays parked.)_
 
 ## Shipped by the loop
 
-- 2026-06-12 — v1: side panel + popup fallback, cookie-session auth with
-  pinned-ID origin allowlist, token-vended Turso writes via the shared
-  statement builder, quick trade log with contract parsing, today's rules
-  tri-state checklist, P&L + streak glance strip, settings (app URL override +
-  sign-out), Playwright extension e2e. (PR #22)
-- 2026-06-12 — v2: Zerodha Kite order-window capture — opt-in per-broker
-  content scripts (optional host permission + dynamic registration), versioned
-  adapter registry (`extension/src/brokers/`), "Log in TradeMark" pill that
-  prefills the quick log via SW-staged captures, silent degradation on DOM
-  drift, Kite DOM fixtures + 6 new e2e steps, 26 new unit tests. (PR #37)
+- 2026-06-12 — v1: side panel + popup fallback, cookie-session auth with pinned-ID origin allowlist, token-vended Turso writes via the shared statement builder, quick trade log with contract parsing, today's rules tri-state checklist, P&L + streak glance strip, settings, Playwright extension e2e. (PR #22)
+- 2026-06-12 — v2: Zerodha Kite order-window capture — opt-in per-broker content scripts, versioned adapter registry, "Log in TradeMark" pill, SW-staged captures, silent degradation, Kite fixtures + 6 e2e steps, 26 unit tests. (PR #37)

@@ -19,24 +19,37 @@
 
 ## Backlog (ordered; each = one loop iteration)
 
-- [x] **Broker CSV mappers v2** — auto-detect & import Upstox, Angel One, Dhan, Fyers, Groww tradebooks (currently Zerodha-shaped). Pure client-side parsing; dedupe stays idempotent.
-- [x] **Insights engine v1 (no-LLM)** — proactive weekly insights computed client-side from the journal: biggest leak (rule × ₹), best/worst entry hour, overtrading detector (trades/day vs win rate), revenge-trade pattern (loss followed within N min), fee drag (charges as % of gross). Dashboard "Insights" card + weekly report section. _Shipped as /app/insights page (sidebar nav): day/hour/payoff/long-short/instruments/streaks/revenge/fee-drag/rule-break findings, n≥5 honesty gate; overtrading detector deferred to the stats pack._
-- [x] **Tilt analytics (Edgewonk-style Tiltmeter)** — tilt score per day from emotion tags + rule breaks + position-size spikes; trend chart in Analytics → psychology tab. _Shipped as a "Tilt check" section on /app/insights: four detectors (revenge sizing ≥1.5× usual within 15min of a loss; rushed re-entries ≤0.5× post-win pause; late-session win-rate fade ≥15pp after each day's first 3 trades; overtrading bursts ≥2× own median trades/day), n≥5 on both sides of every comparison, explicit all-clear cards when clean; per-day tilt score + trend chart deferred until emotion-tag adoption grows._
-- [x] **Advanced trade filters + saved views** — multi-criteria filter bar (R range, hour, tags, playbook, weekday) with shareable saved views (localStorage), instant client-side. _Shipped as a composable chip bar on /app/trades: symbol/segment/direction/result/setup/tags/R-range/P&L-range/date-range/weekday/rule-adherence criteria, URL-encoded shareable state, named views in tm.saved-views; pure client-side predicate (filter-predicate.ts) over the fetched list. Entry-hour criterion deferred to the stats pack alongside the hour analytics._
-- [x] **Share-as-image trade cards** — export any trade/weekly report as a branded PNG (canvas render) for X/WhatsApp; opt-in P&L visibility like community cards. _Shipped as a hand-painted 2D-canvas pipeline (no DOM-to-image dep, rendered on-device, nothing uploaded): generic card model + dark-brand renderer in src/lib/share-card/, trade builder (₹ opt-in → R-multiple → WIN/LOSS → OPEN hero fallbacks, multi-leg badge) and weekly/monthly report builder (win-rate hero, ratio-only stats, green/red-day footnote); ShareImagePanel (Download PNG / Copy image / Web Share) behind Image | Community-post tabs on the trade-detail Share dialog plus a Share image action on /app/reports._
-- [x] **Goals & risk limits** — daily max-loss / max-trades guardrails with banner warnings when breached; weekly P&L / process goals widget with progress. _Shipped as src/features/goals/: limits live in the journal DB settings table (paise-stored, all 3 storage modes), breach math is pure compute.ts on IST day boundaries; loud non-blocking "stop for today" banners on dashboard + trades, dismissible per day (localStorage); "This week" dashboard widget tracks the profit goal and a journaling-days process goal; everything computed client-side from the fetched trade list._
-- [ ] **Price chart on trade detail** — lightweight-charts with free daily/intraday candles (index instruments first), entry/exit/SL markers overlaid.
-- [ ] **More statistics pack** — duration buckets, day-of-week heat, win/loss streak distribution, expectancy by confidence rating, R-percentiles. All client-side.
-- [ ] **Trade replay lite** — step through a trade's session candle-by-candle (depends on price-chart item) with your entries/exits annotated.
-- [ ] **Backtesting v1** — fill the existing coming-soon tab: replay playbook rules against historical index data (depends on price data layer).
+> **Constraint update (product owner):** no market-data-dependent features (we
+> have no paid live/historical data), no LLM/AI features for now. Everything is
+> client-side compute on the user's own journal DB (hosted / BYOD / local
+> sql.js). Items needing market data are **DEFERRED** below.
+
+- [x] **Broker CSV mappers v2** — Upstox/Angel One/Dhan/Fyers/Groww auto-detect + dedupe.
+- [x] **Insights engine v1 (no-LLM)** — client-side findings on /app/insights.
+- [x] **Tilt analytics (Tiltmeter)** — four emotional-spiral detectors on /app/insights.
+- [x] **Advanced trade filters + saved views** — composable chip bar, URL-shareable.
+- [x] **Share-as-image trade cards** — 2D-canvas trade + report PNGs.
+- [x] **Goals & risk limits** — daily/weekly guardrails + breach banners.
+- [ ] **Indian tax & reporting pack** _(top differentiator — no competitor serves this)_ — FY-grouped F&O turnover statement, speculative vs non-speculative split, STT/stamp/SEBI/GST/brokerage drag breakdown, realised-P&L statement, CSV/Excel export + print-to-PDF. Pure client-side, paise-correct.
+- [ ] **More statistics pack** — duration buckets, day×time heatmap, streak-length distribution, expectancy-by-confidence, R-percentiles, position-size analysis. All client-side, n>=5 gate per bucket.
+- [ ] **Psychology/discipline scoring v2** — per-day discipline score + trend, plan-adherence (planned_entry/sl/target deviation), confidence calibration (win% by confidence bin). Fields already in schema; n>=5 gates.
+- [ ] **Options payoff diagrams + DTE + strategy grouping** — SVG payoff-at-expiry from existing leg rows (no IV/live data), DTE buckets, multi-leg trades collapsed into one strategy row.
+- [ ] **Monte Carlo simulator** — bootstrap the user's R-distribution + win% into an equity cone (p5/p50/p95), risk-of-ruin, max-drawdown odds. Web Worker, seeded PRNG, n>=30 gate.
+- [ ] **Workflow polish** — bulk edit (multi-select tag/playbook), note/journal templates, daily journal prompts, pre-trade plan log (writes planned_* fields), keyboard shortcuts. Client-side + localStorage.
+
+### Deferred (need paid market data — revisit if/when a data source is funded)
+
+- [ ] ~~**Price chart on trade detail**~~ — DEFERRED: needs daily/intraday candle data.
+- [ ] ~~**Trade replay lite**~~ — DEFERRED: depends on the price-chart data layer.
+- [ ] ~~**Backtesting v1**~~ — DEFERRED: needs historical index data; coming-soon tab stays parked.
 
 ## Shipped by the loop
 
-<!-- - [x] YYYY-MM-DD — item — PR #N -->
+<!-- - [x] YYYY-MM-DD - item - PR #N -->
 
 - [x] 2026-06-12 — Broker CSV mappers v2 — PR #14
 - [x] 2026-06-12 — Insights engine v1 (no-LLM) — PR #21
 - [x] 2026-06-12 — Tilt analytics (Tilt check on /app/insights) — PR #29
 - [x] 2026-06-12 — Advanced trade filters + saved views — PR #40
-- [x] 2026-06-13 — Share-as-image trade & report cards — local branch feature/journal-local (no-push regime)
-- [x] 2026-06-13 — Goals & risk limits (guardrail banners + weekly goals widget) — local branch feature/journal-local (no-push regime)
+- [x] 2026-06-13 — Share-as-image trade & report cards — consolidated to main (PR-less)
+- [x] 2026-06-13 — Goals & risk limits (guardrail banners + weekly goals widget) — consolidated to main (PR-less)
