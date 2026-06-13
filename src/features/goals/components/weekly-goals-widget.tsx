@@ -26,21 +26,9 @@ export function WeeklyGoalsWidget() {
 
   const hasWeeklyGoals =
     settings.weeklyProfitTargetPaise != null || settings.weeklyJournalDaysTarget != null;
-  if (!hasWeeklyGoals) {
-    return (
-      <Card data-testid="weekly-goals-empty">
-        <CardContent className="flex flex-wrap items-center gap-2 py-3 text-sm text-muted">
-          <Target className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
-          <span className="min-w-0">
-            Set a weekly profit goal and a journaling habit to track here.
-          </span>
-          <Link href="/app/settings" className="font-medium text-accent hover:underline">
-            Set goals →
-          </Link>
-        </CardContent>
-      </Card>
-    );
-  }
+  // No dashboard nudge — the topbar "Goals" entry handles discovery. The widget
+  // renders only once goals are set, when the progress is what's worth showing.
+  if (!hasWeeklyGoals) return null;
 
   const p = weeklyProgress(settings, trades ?? [], journalDates);
   return (

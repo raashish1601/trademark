@@ -60,6 +60,21 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ dbName: name, storageMode: "hosted", provisioned: true });
   } catch (e) {
+    // A concurrent provision (e.g. onboarding auto-connect racing a signup's
+    // onAuthed) can win the user_id UNIQUE row first. That's not a failure —
+    // re-read and return the row the other request created.
+    const raced = await platformDb
+      .select()
+      .from(userDatabases)
+      .where(eq(userDatabases.userId, session.user.id))
+      .get();
+    if (raced) {
+      return NextResponse.json({
+        dbName: raced.dbName,
+        storageMode: raced.storageMode,
+        provisioned: true,
+      });
+    }
     console.error("[provision] failed", e);
     return NextResponse.json({ error: "Provisioning failed. Try again." }, { status: 500 });
   }

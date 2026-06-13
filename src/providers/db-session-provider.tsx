@@ -79,17 +79,20 @@ async function getHostedConnection(): Promise<{ url: string; token: string }> {
 
 export function DbSessionProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = React.useState<DbSessionState>({ status: "loading" });
+  // Dedupe concurrent hosted connects. The onboarding auto-connect effect and a
+  // sign-up's onAuthed callback can both fire connectHosted() at once for a
+  // brand-new user; without this they'd each POST /api/db/provision and race
+  // (two Turso DBs created, the second insert hitting the user_id UNIQUE
+  // constraint → a spurious 500). Sharing one in-flight promise serialises them.
+  const hostedConnectInFlight = React.useRef<Promise<void> | null>(null);
 
-  const connectByod = React.useCallback(
-    async (creds: ByodCredentials, passphrase?: string) => {
-      const db = createLibsqlDb(creds.url, creds.token);
-      await validateAndMigrate(db);
-      await saveByodCreds(creds, passphrase);
-      setStoredMode("byod");
-      setState({ status: "ready", mode: "byod", db });
-    },
-    []
-  );
+  const connectByod = React.useCallback(async (creds: ByodCredentials, passphrase?: string) => {
+    const db = createLibsqlDb(creds.url, creds.token);
+    await validateAndMigrate(db);
+    await saveByodCreds(creds, passphrase);
+    setStoredMode("byod");
+    setState({ status: "ready", mode: "byod", db });
+  }, []);
 
   const unlockByod = React.useCallback(async (passphrase: string) => {
     const creds = await unlockByodCreds(passphrase);
@@ -107,12 +110,23 @@ export function DbSessionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const connectHosted = React.useCallback(async () => {
-    const conn = await getHostedConnection();
-    const db = createLibsqlDb(conn.url, conn.token);
-    // Idempotent — keeps long-lived hosted DBs current after app upgrades.
-    await runMigrations(db);
-    setStoredMode("hosted");
-    setState({ status: "ready", mode: "hosted", db });
+    // Coalesce overlapping calls onto one provision/connect so a fresh signup
+    // can't double-provision (see hostedConnectInFlight above).
+    if (hostedConnectInFlight.current) return hostedConnectInFlight.current;
+    const run = (async () => {
+      const conn = await getHostedConnection();
+      const db = createLibsqlDb(conn.url, conn.token);
+      // Idempotent — keeps long-lived hosted DBs current after app upgrades.
+      await runMigrations(db);
+      setStoredMode("hosted");
+      setState({ status: "ready", mode: "hosted", db });
+    })();
+    hostedConnectInFlight.current = run;
+    try {
+      await run;
+    } finally {
+      hostedConnectInFlight.current = null;
+    }
   }, []);
 
   const disconnect = React.useCallback(() => {
